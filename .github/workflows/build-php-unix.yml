@@ -32,6 +32,7 @@ permissions:
 env:
   PHP_VERSION: ${{ inputs.php_version || '8.5' }}
   BUILD_PRESET: ${{ inputs.preset || 'minimal' }}
+  PHP_BUILD_PROVIDER: "https://github.com/edram/mise-php"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
