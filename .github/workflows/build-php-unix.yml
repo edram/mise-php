@@ -1,0 +1,193 @@
+name: Build PHP (Unix)
+
+on:
+  push:
+    branches: [ci]
+    paths:
+      - ".github/workflows/build-php-unix.yml"
+  workflow_dispatch:
+    inputs:
+      php_version:
+        description: PHP minor version
+        required: true
+        default: "8.5"
+        type: choice
+        options:
+          - "8.5"
+          - "8.4"
+          - "8.3"
+          - "8.2"
+      preset:
+        description: Extension preset
+        required: true
+        default: minimal
+        type: choice
+        options:
+          - minimal
+          - common
+
+permissions:
+  contents: read
+
+env:
+  PHP_VERSION: ${{ inputs.php_version || '8.5' }}
+  BUILD_PRESET: ${{ inputs.preset || 'minimal' }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    name: PHP ${{ inputs.php_version || '8.5' }} ${{ matrix.target }} (${{ inputs.preset || 'minimal' }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64-musl
+            runner: ubuntu-latest
+            spc_target: ""
+            upx: true
+          - target: linux-aarch64-musl
+            runner: ubuntu-24.04-arm
+            spc_target: ""
+            upx: true
+          - target: linux-x86_64-gnu.2.17
+            runner: ubuntu-22.04
+            spc_target: native-native-gnu.2.17
+            upx: false
+          - target: linux-aarch64-gnu.2.17
+            runner: ubuntu-22.04-arm
+            spc_target: native-native-gnu.2.17
+            upx: false
+          - target: macos-x86_64
+            runner: macos-15-intel
+            spc_target: ""
+            upx: false
+          - target: macos-aarch64
+            runner: macos-15
+            spc_target: ""
+            upx: false
+
+    steps:
+      - name: Select extension preset
+        id: preset
+        shell: bash
+        run: |
+          case "$BUILD_PRESET" in
+            minimal)
+              echo "extensions=iconv,pcntl,posix,mbstring,filter,tokenizer,phar" >> "$GITHUB_OUTPUT"
+              echo "suggest=" >> "$GITHUB_OUTPUT"
+              ;;
+            common)
+              echo "extensions=bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,xml,mbstring,mbregex,mysqlnd,openssl,pcntl,pdo,pdo_mysql,pdo_sqlite,pdo_pgsql,pgsql,phar,posix,redis,session,simplexml,soap,sockets,sqlite3,tokenizer,xmlwriter,xmlreader,zlib,zip" >> "$GITHUB_OUTPUT"
+              echo "suggest=--with-suggests" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Checkout StaticPHP
+        uses: actions/checkout@v4
+        with:
+          repository: crazywhalecc/static-php-cli
+          ref: v3
+
+      - name: Apply glibc target
+        if: matrix.spc_target != ''
+        shell: bash
+        run: echo "SPC_TARGET=${{ matrix.spc_target }}" >> "$GITHUB_ENV"
+
+      - name: Setup PHP build runtime
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          tools: composer
+          extensions: curl, openssl, mbstring, filter
+          ini-values: memory_limit=-1
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Cache downloaded build artifacts
+        uses: actions/cache@v4
+        with:
+          path: downloads
+          key: spc-v3-${{ env.PHP_VERSION }}-${{ matrix.target }}-${{ env.BUILD_PRESET }}
+
+      - name: Install StaticPHP dependencies
+        run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist --no-dev
+
+      - name: Check build environment
+        run: bin/spc doctor --auto-fix
+
+      - name: Install UPX
+        if: matrix.upx
+        run: bin/spc install-pkg upx
+
+      - name: Build PHP CLI
+        shell: bash
+        env:
+          EXTENSIONS: ${{ steps.preset.outputs.extensions }}
+          SUGGEST_OPTION: ${{ steps.preset.outputs.suggest }}
+        run: |
+          BUILD_OPTIONS=(--build-cli --debug)
+          if [[ "${{ matrix.upx }}" == "true" ]]; then
+            BUILD_OPTIONS+=(--with-upx-pack)
+          fi
+          if [[ -n "$SUGGEST_OPTION" ]]; then
+            BUILD_OPTIONS+=("$SUGGEST_OPTION")
+          fi
+
+          bin/spc build \
+            "${BUILD_OPTIONS[@]}" \
+            "$EXTENSIONS" \
+            --dl-with-php="$PHP_VERSION" \
+            --dl-retry=5 \
+            --dl-prefer-binary \
+            --dl-ignore-cache=php-src
+
+      - name: Package PHP
+        id: package
+        shell: bash
+        run: |
+          bin/spc dev:info php --json --no-ansi > php-info.json
+          PHP_PATCH_VERSION="$(php -r '$info = json_decode(file_get_contents("php-info.json"), true); echo $info["cache"]["source"]["info"]["version"] ?? "";')"
+          if [[ -z "$PHP_PATCH_VERSION" ]]; then
+            echo "Cannot resolve the built PHP version"
+            exit 1
+          fi
+
+          PACKAGE_ROOT="package/php-$PHP_PATCH_VERSION-${{ matrix.target }}"
+          ARCHIVE_NAME="php-$PHP_PATCH_VERSION-${{ matrix.target }}.tar.gz"
+          ARCHIVE="dist/$ARCHIVE_NAME"
+          mkdir -p "$PACKAGE_ROOT/bin" "$PACKAGE_ROOT/share/mise-php" dist
+          install -m 755 buildroot/bin/php "$PACKAGE_ROOT/bin/php"
+          cp buildroot/build-manifest.json "$PACKAGE_ROOT/share/mise-php/"
+          cp -R buildroot/license "$PACKAGE_ROOT/share/mise-php/"
+          tar -czf "$ARCHIVE" -C "$PACKAGE_ROOT" .
+          (
+            cd dist
+            shasum -a 256 "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
+          )
+
+          echo "php_version=$PHP_PATCH_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Upload PHP archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: php-${{ steps.package.outputs.php_version }}-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spc-logs-${{ env.PHP_VERSION }}-${{ matrix.target }}
+          path: log/*.log
+          if-no-files-found: ignore
+          retention-days: 14
