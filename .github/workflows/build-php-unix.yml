@@ -25,6 +25,11 @@ on:
         options:
           - minimal
           - common
+      publish:
+        description: Publish artifacts to GitHub Releases
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -144,8 +149,8 @@ jobs:
             exit 1
           fi
 
-          PACKAGE_ROOT="package/php-$PHP_PATCH_VERSION-${{ matrix.target }}"
-          ARCHIVE_NAME="php-$PHP_PATCH_VERSION-${{ matrix.target }}.tar.gz"
+          PACKAGE_ROOT="package/php-$PHP_PATCH_VERSION-$BUILD_PRESET-${{ matrix.target }}"
+          ARCHIVE_NAME="php-$PHP_PATCH_VERSION-$BUILD_PRESET-${{ matrix.target }}.tar.gz"
           ARCHIVE="dist/$ARCHIVE_NAME"
           mkdir -p "$PACKAGE_ROOT/bin" "$PACKAGE_ROOT/share/mise-php" dist
           install -m 755 buildroot/bin/php "$PACKAGE_ROOT/bin/php"
@@ -156,13 +161,14 @@ jobs:
             cd dist
             shasum -a 256 "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
           )
+          printf '%s\n' "$PHP_PATCH_VERSION" > "dist/php-version-${{ matrix.target }}.txt"
 
           echo "php_version=$PHP_PATCH_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Upload PHP archive
         uses: actions/upload-artifact@v4
         with:
-          name: php-${{ steps.package.outputs.php_version }}-${{ matrix.target }}
+          name: php-${{ steps.package.outputs.php_version }}-${{ env.BUILD_PRESET }}-${{ matrix.target }}
           path: dist/*
           if-no-files-found: error
           retention-days: 14
@@ -175,3 +181,65 @@ jobs:
           path: log/*.log
           if-no-files-found: ignore
           retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Download PHP archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: php-*
+          path: release
+          merge-multiple: true
+
+      - name: Prepare release
+        id: release
+        shell: bash
+        run: |
+          shopt -s nullglob
+          VERSION_FILES=(release/php-version-*.txt)
+          if (( ${#VERSION_FILES[@]} == 0 )); then
+            echo "No PHP version metadata found"
+            exit 1
+          fi
+
+          PHP_PATCH_VERSION=""
+          for VERSION_FILE in "${VERSION_FILES[@]}"; do
+            CURRENT_VERSION="$(<"$VERSION_FILE")"
+            if [[ -z "$CURRENT_VERSION" ]]; then
+              echo "Empty PHP version metadata in $VERSION_FILE"
+              exit 1
+            fi
+            if [[ -n "$PHP_PATCH_VERSION" && "$CURRENT_VERSION" != "$PHP_PATCH_VERSION" ]]; then
+              echo "Mismatched PHP versions: $PHP_PATCH_VERSION and $CURRENT_VERSION"
+              exit 1
+            fi
+            PHP_PATCH_VERSION="$CURRENT_VERSION"
+          done
+
+          (
+            cd release
+            sha256sum --check ./*.sha256
+            cat ./*.sha256 > SHA256SUMS
+          )
+
+          echo "php_version=$PHP_PATCH_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=php-$PHP_PATCH_VERSION-$BUILD_PRESET" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        shell: bash
+        run: |
+          gh release create "${{ steps.release.outputs.tag }}" \
+            release/*.tar.gz \
+            release/*.sha256 \
+            release/SHA256SUMS \
+            --target "$GITHUB_SHA" \
+            --title "PHP ${{ steps.release.outputs.php_version }} ($BUILD_PRESET)" \
+            --notes "Precompiled PHP ${{ steps.release.outputs.php_version }} with the $BUILD_PRESET extension preset."
