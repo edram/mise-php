@@ -26,7 +26,7 @@ on:
           - minimal
           - common
       publish:
-        description: Publish artifacts to GitHub Releases
+        description: Request release approval after building
         required: true
         default: false
         type: boolean
@@ -184,9 +184,10 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    if: github.event_name == 'push' || inputs.publish
     needs: build
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: write
     env:
