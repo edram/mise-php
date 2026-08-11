@@ -241,6 +241,7 @@ jobs:
             release/*.tar.gz \
             release/*.sha256 \
             release/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "PHP ${{ steps.release.outputs.php_version }} ($BUILD_PRESET)" \
             --notes "Precompiled PHP ${{ steps.release.outputs.php_version }} with the $BUILD_PRESET extension preset."
