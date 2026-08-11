@@ -46,27 +46,15 @@ jobs:
         include:
           - target: linux-x86_64-musl
             runner: ubuntu-latest
-            spc_target: ""
             upx: true
           - target: linux-aarch64-musl
             runner: ubuntu-24.04-arm
-            spc_target: ""
             upx: true
-          - target: linux-x86_64-gnu.2.17
-            runner: ubuntu-22.04
-            spc_target: native-native-gnu.2.17
-            upx: false
-          - target: linux-aarch64-gnu.2.17
-            runner: ubuntu-22.04-arm
-            spc_target: native-native-gnu.2.17
-            upx: false
           - target: macos-x86_64
             runner: macos-15-intel
-            spc_target: ""
             upx: false
           - target: macos-aarch64
             runner: macos-15
-            spc_target: ""
             upx: false
 
     steps:
@@ -90,11 +78,6 @@ jobs:
         with:
           repository: crazywhalecc/static-php-cli
           ref: v3
-
-      - name: Apply glibc target
-        if: matrix.spc_target != ''
-        shell: bash
-        run: echo "SPC_TARGET=${{ matrix.spc_target }}" >> "$GITHUB_ENV"
 
       - name: Setup PHP build runtime
         uses: shivammathur/setup-php@v2
