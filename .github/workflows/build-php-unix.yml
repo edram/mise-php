@@ -139,6 +139,8 @@ jobs:
         shell: bash
         run: |
           bin/spc dev:info php --json --no-ansi > php-info.json
+          # $info is PHP syntax and must not be expanded by Bash.
+          # shellcheck disable=SC2016
           PHP_PATCH_VERSION="$(php -r '$info = json_decode(file_get_contents("php-info.json"), true); echo $info["cache"]["source"]["info"]["version"] ?? "";')"
           if [[ -z "$PHP_PATCH_VERSION" ]]; then
             echo "Cannot resolve the built PHP version"
