@@ -1,4 +1,4 @@
-name: Build PHP (Unix)
+name: Build PHP CLI (Unix)
 
 on:
   workflow_dispatch:
@@ -13,14 +13,14 @@ on:
           - "8.4"
           - "8.3"
           - "8.2"
-      preset:
-        description: Extension preset
+      channel:
+        description: Extension channel
         required: true
-        default: minimal
+        default: common
         type: choice
         options:
-          - minimal
           - common
+          - minimal
       publish:
         description: Request release approval after building
         required: true
@@ -32,13 +32,14 @@ permissions:
 
 env:
   PHP_VERSION: ${{ inputs.php_version || '8.5' }}
-  BUILD_PRESET: ${{ inputs.preset || 'minimal' }}
+  PHP_SAPI: cli
+  BUILD_CHANNEL: ${{ inputs.channel || 'common' }}
   PHP_BUILD_PROVIDER: "https://github.com/edram/mise-php"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build:
-    name: PHP ${{ inputs.php_version || '8.5' }} ${{ matrix.target }} (${{ inputs.preset || 'minimal' }})
+    name: PHP ${{ inputs.php_version || '8.5' }} CLI ${{ matrix.target }} (${{ inputs.channel || 'common' }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 240
     strategy:
@@ -59,11 +60,11 @@ jobs:
             upx: false
 
     steps:
-      - name: Select extension preset
-        id: preset
+      - name: Select extension channel
+        id: channel
         shell: bash
         run: |
-          case "$BUILD_PRESET" in
+          case "$BUILD_CHANNEL" in
             minimal)
               echo "extensions=iconv,pcntl,posix,mbstring,filter,tokenizer,phar" >> "$GITHUB_OUTPUT"
               echo "suggest=" >> "$GITHUB_OUTPUT"
@@ -100,7 +101,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: downloads
-          key: spc-v3-${{ env.PHP_VERSION }}-${{ matrix.target }}-${{ env.BUILD_PRESET }}
+          key: spc-v3-${{ env.PHP_VERSION }}-${{ matrix.target }}-${{ env.BUILD_CHANNEL }}
 
       - name: Install StaticPHP dependencies
         run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist --no-dev
@@ -115,8 +116,8 @@ jobs:
       - name: Build PHP CLI
         shell: bash
         env:
-          EXTENSIONS: ${{ steps.preset.outputs.extensions }}
-          SUGGEST_OPTION: ${{ steps.preset.outputs.suggest }}
+          EXTENSIONS: ${{ steps.channel.outputs.extensions }}
+          SUGGEST_OPTION: ${{ steps.channel.outputs.suggest }}
         run: |
           BUILD_OPTIONS=(--build-cli --debug)
           if [[ "${{ matrix.upx }}" == "true" ]]; then
@@ -148,7 +149,7 @@ jobs:
           fi
 
           PACKAGE_ROOT="package"
-          ARCHIVE_NAME="php-$PHP_PATCH_VERSION-$BUILD_PRESET-${{ matrix.target }}.tar.gz"
+          ARCHIVE_NAME="php-$PHP_PATCH_VERSION-$PHP_SAPI-$BUILD_CHANNEL-${{ matrix.target }}.tar.gz"
           ARCHIVE="dist/$ARCHIVE_NAME"
           mkdir -p "$PACKAGE_ROOT" dist
           install -m 755 buildroot/bin/php "$PACKAGE_ROOT/php"
@@ -164,7 +165,7 @@ jobs:
       - name: Upload PHP archive
         uses: actions/upload-artifact@v4
         with:
-          name: php-${{ steps.package.outputs.php_version }}-${{ env.BUILD_PRESET }}-${{ matrix.target }}
+          name: php-${{ steps.package.outputs.php_version }}-${{ env.PHP_SAPI }}-${{ env.BUILD_CHANNEL }}-${{ matrix.target }}
           path: dist/*
           if-no-files-found: error
           retention-days: 14
@@ -228,7 +229,7 @@ jobs:
           )
 
           echo "php_version=$PHP_PATCH_VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=php-$PHP_PATCH_VERSION-$BUILD_PRESET" >> "$GITHUB_OUTPUT"
+          echo "tag=php-$PHP_PATCH_VERSION-$PHP_SAPI-$BUILD_CHANNEL" >> "$GITHUB_OUTPUT"
 
       - name: Publish release
         shell: bash
@@ -246,6 +247,6 @@ jobs:
               "${ASSETS[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title "PHP ${{ steps.release.outputs.php_version }} ($BUILD_PRESET)" \
-              --notes "Precompiled PHP ${{ steps.release.outputs.php_version }} with the $BUILD_PRESET extension preset."
+              --title "PHP ${{ steps.release.outputs.php_version }} CLI ($BUILD_CHANNEL)" \
+              --notes "Precompiled PHP ${{ steps.release.outputs.php_version }} CLI with the $BUILD_CHANNEL extension channel."
           fi
