@@ -50,7 +50,8 @@ local function verify_checksum(archive_path, checksum_path, archive_name)
 end
 
 function PLUGIN:BackendInstall(ctx)
-    local preset = php.preset(ctx.tool)
+    local sapi = php.sapi(ctx.tool)
+    local channel = php.channel(ctx)
     local version = tostring(ctx.version or "")
     local install_path = tostring(ctx.install_path or "")
     local download_path = tostring(ctx.download_path or "")
@@ -67,8 +68,8 @@ function PLUGIN:BackendInstall(ctx)
 
     local platform = php.platform()
     local arch = php.arch()
-    local tag = php.tag(version, preset)
-    local archive_name = php.archive_name(version, preset, platform, arch)
+    local tag = php.tag(version, sapi, channel)
+    local archive_name = php.archive_name(version, sapi, channel, platform, arch)
     local archive_path = file.join_path(download_path, archive_name)
     local checksum_path = archive_path .. ".sha256"
     local bin_path = file.join_path(install_path, "bin")

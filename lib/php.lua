@@ -5,9 +5,13 @@ M.RELEASES_API_URL = "https://api.github.com/repos/" .. M.REPOSITORY .. "/releas
 M.RELEASES_URL = "https://github.com/" .. M.REPOSITORY .. "/releases/download"
 M.USER_AGENT = "mise-php/" .. ((PLUGIN and PLUGIN.version) or "unknown")
 
-M.PRESETS = {
+M.CHANNELS = {
     common = true,
     minimal = true,
+}
+
+M.SAPIS = {
+    cli = true,
 }
 
 -- mise injects RUNTIME as userdata, so missing fields must be read defensively.
@@ -23,13 +27,22 @@ local function runtime_field(name)
     return tostring(value)
 end
 
-function M.preset(tool)
-    local preset = tostring(tool or "")
-    if not M.PRESETS[preset] then
-        error("Unsupported PHP preset: " .. preset .. ". Use minimal or common.")
+function M.sapi(tool)
+    local sapi = tostring(tool or "")
+    if not M.SAPIS[sapi] then
+        error("Unsupported PHP tool: " .. sapi .. ". Use php:cli.")
     end
 
-    return preset
+    return sapi
+end
+
+function M.channel(ctx)
+    local channel = tostring((ctx.options or {}).channel or "common")
+    if not M.CHANNELS[channel] then
+        error("Unsupported PHP channel: " .. channel .. ". Use minimal or common.")
+    end
+
+    return channel
 end
 
 function M.platform()
@@ -60,8 +73,8 @@ function M.is_version(version)
     return tostring(version or ""):match("^[0-9]+%.[0-9]+%.[0-9]+$") ~= nil
 end
 
-function M.version_from_tag(tag, preset)
-    local version = tostring(tag or ""):match("^php%-([0-9]+%.[0-9]+%.[0-9]+)%-" .. preset .. "$")
+function M.version_from_tag(tag, sapi, channel)
+    local version = tostring(tag or ""):match("^php%-([0-9]+%.[0-9]+%.[0-9]+)%-" .. sapi .. "%-" .. channel .. "$")
     if M.is_version(version) then
         return version
     end
@@ -69,16 +82,16 @@ function M.version_from_tag(tag, preset)
     return nil
 end
 
-function M.tag(version, preset)
+function M.tag(version, sapi, channel)
     if not M.is_version(version) then
         error("Invalid PHP version: " .. tostring(version or ""))
     end
 
-    return "php-" .. version .. "-" .. preset
+    return "php-" .. version .. "-" .. sapi .. "-" .. channel
 end
 
-function M.archive_name(version, preset, platform, arch)
-    return M.tag(version, preset) .. "-" .. platform .. "-" .. arch .. ".tar.gz"
+function M.archive_name(version, sapi, channel, platform, arch)
+    return M.tag(version, sapi, channel) .. "-" .. platform .. "-" .. arch .. ".tar.gz"
 end
 
 function M.download_url(tag, filename)

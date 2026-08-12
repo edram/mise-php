@@ -4,6 +4,7 @@ set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 test_dir="$(mktemp -d)"
+project_dir="$test_dir/project"
 trap 'rm -rf "$test_dir"' EXIT
 
 export MISE_CACHE_DIR="$test_dir/cache"
@@ -13,32 +14,55 @@ export MISE_EXPERIMENTAL=1
 export MISE_STATE_DIR="$test_dir/state"
 export MISE_USE_VERSIONS_HOST=0
 
-mise_test() {
+lua - "$root_dir" <<'LUA'
+local root_dir = assert(arg[1])
+PLUGIN = { version = "test" }
+local php = dofile(root_dir .. "/lib/php.lua")
+
+assert(php.tag("8.5.9", "cli", "common") == "php-8.5.9-cli-common")
+assert(
+    php.archive_name("8.5.9", "cli", "common", "linux", "x86_64")
+        == "php-8.5.9-cli-common-linux-x86_64.tar.gz"
+)
+LUA
+
+mise_without_config() {
     mise --no-config "$@"
 }
 
-mise_test plugins link --force php "$root_dir"
+mise_test() {
+    mise -C "$project_dir" "$@"
+}
 
-if mise_test ls-remote php:unsupported > /dev/null 2>&1; then
-    echo "Unsupported PHP presets must be rejected" >&2
+mise_without_config plugins link --force php "$root_dir"
+
+if mise_without_config ls-remote php:unsupported > /dev/null 2>&1; then
+    echo "Unsupported PHP tools must be rejected" >&2
     exit 1
 fi
 
-version="$(mise_test ls-remote php:minimal | tail -n 1)"
+mkdir -p "$project_dir"
+printf '%s\n' \
+    '[tools]' \
+    '"php:cli" = { version = "8.5", channel = "common" }' \
+    > "$project_dir/mise.toml"
+mise_test trust
+
+version="$(mise_test ls-remote php:cli | tail -n 1)"
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "Invalid PHP version returned by the plugin: $version" >&2
     exit 1
 fi
 
-mise_test install --force "php:minimal@$version"
+mise_test install
 
-install_path="$(mise_test where "php:minimal@$version")"
+install_path="$(mise_test where php:cli)"
 if [[ ! -x "$install_path/bin/php" ]]; then
     echo "PHP was not installed at $install_path/bin/php" >&2
     exit 1
 fi
 
-installed_version="$(mise_test exec "php:minimal@$version" -- php -r 'echo PHP_VERSION;')"
+installed_version="$(mise_test exec -- php -r 'echo PHP_VERSION;')"
 if [[ "$installed_version" != "$version" ]]; then
     echo "Expected PHP $version, got $installed_version" >&2
     exit 1

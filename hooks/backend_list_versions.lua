@@ -18,7 +18,8 @@ local function release_has_assets(release, archive_name)
 end
 
 function PLUGIN:BackendListVersions(ctx)
-    local preset = php.preset(ctx.tool)
+    local sapi = php.sapi(ctx.tool)
+    local channel = php.channel(ctx)
     local platform = php.platform()
     local arch = php.arch()
 
@@ -44,8 +45,8 @@ function PLUGIN:BackendListVersions(ctx)
     local versions = {}
     for _, release in ipairs(releases) do
         if not release.draft and not release.prerelease then
-            local version = php.version_from_tag(release.tag_name, preset)
-            local archive_name = version and php.archive_name(version, preset, platform, arch)
+            local version = php.version_from_tag(release.tag_name, sapi, channel)
+            local archive_name = version and php.archive_name(version, sapi, channel, platform, arch)
 
             if archive_name and release_has_assets(release, archive_name) then
                 table.insert(versions, version)
@@ -54,7 +55,7 @@ function PLUGIN:BackendListVersions(ctx)
     end
 
     if #versions == 0 then
-        error("No " .. preset .. " PHP builds are available for " .. platform .. "-" .. arch)
+        error("No " .. channel .. " PHP CLI builds are available for " .. platform .. "-" .. arch)
     end
 
     return { versions = semver.sort(versions) }
