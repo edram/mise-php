@@ -24,6 +24,24 @@ assert(
     php.archive_name("8.5.9", "cli", "common", "linux", "x86_64")
         == "php-8.5.9-cli-common-linux-x86_64.tar.gz"
 )
+
+local linux_archive = "php-8.5.9-cli-common-linux-x86_64.tar.gz"
+local macos_archive = "php-8.5.9-cli-common-macos-aarch64.tar.gz"
+local checksums = string.rep("a", 64)
+    .. "  "
+    .. linux_archive
+    .. "\n"
+    .. string.rep("B", 64)
+    .. " *"
+    .. macos_archive
+    .. "\n"
+
+assert(php.checksum_for(checksums, linux_archive) == string.rep("a", 64))
+assert(php.checksum_for(checksums, macos_archive) == string.rep("b", 64))
+
+local found, checksum_error = pcall(php.checksum_for, checksums, "missing.tar.gz")
+assert(not found)
+assert(tostring(checksum_error):find("missing.tar.gz", 1, true))
 LUA
 
 mise_without_config() {

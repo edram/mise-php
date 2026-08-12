@@ -1,0 +1,55 @@
+name: Update Release Checksums
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: GitHub Release tag
+        required: true
+        type: string
+
+concurrency:
+  group: release-checksums-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    name: Update ${{ inputs.release_tag }} checksums
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    steps:
+      - name: Update checksum manifest
+        shell: bash
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > release.json
+
+          ARCHIVE_COUNT="$(jq '[.assets[] | select(.name | endswith(".tar.gz"))] | length' release.json)"
+          jq -r '
+            .assets[]
+            | select(.name | endswith(".tar.gz"))
+            | select((.digest // "") | startswith("sha256:"))
+            | "\(.digest | ltrimstr("sha256:"))  \(.name)"
+          ' release.json | sort > checksums.txt
+          CHECKSUM_COUNT="$(wc -l < checksums.txt)"
+
+          if [[ "$ARCHIVE_COUNT" -eq 0 || "$CHECKSUM_COUNT" -ne "$ARCHIVE_COUNT" ]]; then
+            echo "Expected $ARCHIVE_COUNT archive digests, found $CHECKSUM_COUNT"
+            exit 1
+          fi
+
+          gh release upload "$RELEASE_TAG" checksums.txt \
+            --clobber \
+            --repo "$GITHUB_REPOSITORY"
+
+          while IFS= read -r LEGACY_CHECKSUM; do
+            gh release delete-asset "$RELEASE_TAG" "$LEGACY_CHECKSUM" \
+              --yes \
+              --repo "$GITHUB_REPOSITORY"
+          done < <(
+            jq -r '.assets[] | select(.name == "SHA256SUMS" or (.name | endswith(".sha256"))) | .name' release.json
+          )

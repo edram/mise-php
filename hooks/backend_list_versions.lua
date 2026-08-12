@@ -7,14 +7,14 @@ local php = require("lib.php")
 
 local function release_has_assets(release, archive_name)
     local archive_found = false
-    local checksum_found = false
+    local checksums_found = false
 
     for _, asset in ipairs(release.assets or {}) do
         archive_found = archive_found or asset.name == archive_name
-        checksum_found = checksum_found or asset.name == archive_name .. ".sha256"
+        checksums_found = checksums_found or asset.name == php.CHECKSUMS_NAME
     end
 
-    return archive_found and checksum_found
+    return archive_found and checksums_found
 end
 
 function PLUGIN:BackendListVersions(ctx)

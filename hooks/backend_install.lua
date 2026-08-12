@@ -38,12 +38,8 @@ local function sha256(path)
 end
 
 local function verify_checksum(archive_path, checksum_path, archive_name)
-    local checksum = file.read(checksum_path)
-    local expected, listed_name = checksum:match("^%s*([0-9a-fA-F]+)%s+%*?([^%s]+)%s*$")
+    local expected = php.checksum_for(file.read(checksum_path), archive_name)
 
-    if expected == nil or #expected ~= 64 or listed_name ~= archive_name then
-        error("Invalid checksum file for " .. archive_name)
-    end
     if sha256(archive_path) ~= expected:lower() then
         error("SHA-256 checksum mismatch for " .. archive_name)
     end
@@ -71,13 +67,13 @@ function PLUGIN:BackendInstall(ctx)
     local tag = php.tag(version, sapi, channel)
     local archive_name = php.archive_name(version, sapi, channel, platform, arch)
     local archive_path = file.join_path(download_path, archive_name)
-    local checksum_path = archive_path .. ".sha256"
+    local checksum_path = file.join_path(download_path, php.CHECKSUMS_NAME)
     local bin_path = file.join_path(install_path, "bin")
     local php_path = file.join_path(bin_path, "php")
 
     cmd.exec("mkdir -p " .. php.shell_quote(download_path) .. " " .. php.shell_quote(bin_path))
     download(php.download_url(tag, archive_name), archive_path)
-    download(php.download_url(tag, archive_name .. ".sha256"), checksum_path)
+    download(php.download_url(tag, php.CHECKSUMS_NAME), checksum_path)
     verify_checksum(archive_path, checksum_path, archive_name)
 
     local extract_error = archiver.decompress(archive_path, bin_path)

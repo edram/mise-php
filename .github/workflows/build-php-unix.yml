@@ -43,6 +43,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 240
     permissions:
+      actions: write
       contents: write
     strategy:
       fail-fast: false
@@ -156,10 +157,6 @@ jobs:
           mkdir -p "$PACKAGE_ROOT" dist
           install -m 755 buildroot/bin/php "$PACKAGE_ROOT/php"
           tar -czf "$ARCHIVE" -C "$PACKAGE_ROOT" php
-          (
-            cd dist
-            shasum -a 256 "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
-          )
           echo "php_version=$PHP_PATCH_VERSION" >> "$GITHUB_OUTPUT"
           echo "archive_name=$ARCHIVE_NAME" >> "$GITHUB_OUTPUT"
 
@@ -193,9 +190,12 @@ jobs:
 
           gh release upload "$TAG" \
             "dist/$ARCHIVE_NAME" \
-            "dist/$ARCHIVE_NAME.sha256" \
             --clobber \
             --repo "$GITHUB_REPOSITORY"
+
+          gh workflow run update-release-checksums.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --field release_tag="$TAG"
 
       - name: Upload build logs on failure
         if: failure()

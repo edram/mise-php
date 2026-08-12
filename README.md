@@ -48,7 +48,7 @@ To select a channel, use the structured tool form in `mise.toml`:
 | `common` | CLI build with database, network, image, XML, archive, and Redis support (default) |
 | `minimal` | Smaller CLI build with the extensions needed by common PHP tooling |
 
-Only versions with both an archive and a checksum for the current platform are returned:
+Only versions with both an archive for the current platform and `checksums.txt` are returned:
 
 ```bash
 mise ls-remote php:cli
@@ -62,7 +62,7 @@ and assets use this contract:
 ```text
 php-{version}-{sapi}-{channel}
 php-{version}-{sapi}-{channel}-{platform}-{arch}.tar.gz
-php-{version}-{sapi}-{channel}-{platform}-{arch}.tar.gz.sha256
+checksums.txt
 ```
 
 For example:
@@ -70,13 +70,15 @@ For example:
 ```text
 php-8.5.9-cli-common
 php-8.5.9-cli-common-linux-x86_64.tar.gz
-php-8.5.9-cli-common-linux-x86_64.tar.gz.sha256
+checksums.txt
 ```
+
+`checksums.txt` uses the standard `sha256sum` format and contains one entry for each archive in the release.
 
 During installation the plugin:
 
 1. detects the platform and architecture through mise;
-2. downloads the matching archive and checksum from GitHub Releases;
+2. downloads the matching archive and shared checksum manifest from GitHub Releases;
 3. verifies the archive before extracting it;
 4. installs the executable as `<install_path>/bin/php`;
 5. adds `<install_path>/bin` to `PATH` through `BackendExecEnv`.
