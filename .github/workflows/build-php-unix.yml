@@ -181,7 +181,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    if: inputs.publish
+    if: ${{ !cancelled() && inputs.publish }}
     needs: build
     runs-on: ubuntu-latest
     environment: release
