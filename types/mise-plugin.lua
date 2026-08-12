@@ -9,6 +9,7 @@
 ---@class Runtime
 ---@field osType string Operating system type (e.g. "linux", "darwin", "windows")
 ---@field archType string Architecture type (e.g. "amd64", "arm64")
+---@field envType? string C library environment type (e.g. "gnu", "musl")
 ---@field version string Runtime version
 ---@field pluginDirPath string Path to the plugin directory
 RUNTIME = {}
@@ -108,6 +109,7 @@ ARCH_TYPE = ""
 ---@field tool string Tool name
 ---@field version string Version to install
 ---@field install_path string Path where the tool should be installed
+---@field download_path string Path where downloads should be stored
 
 ---@class BackendInstallResult
 
@@ -152,6 +154,9 @@ PLUGIN = {}
 ---@field get fun(opts: HttpRequestOpts): HttpResponse Send a GET request
 ---@field head fun(opts: HttpRequestOpts): HttpResponse Send a HEAD request (no body)
 ---@field download_file fun(opts: HttpRequestOpts, path: string) Download a file to disk
+---@field try_get fun(opts: HttpRequestOpts): HttpResponse?, string? Send a GET request without raising transport errors
+---@field try_head fun(opts: HttpRequestOpts): HttpResponse?, string? Send a HEAD request without raising transport errors
+---@field try_download_file fun(opts: HttpRequestOpts, path: string): boolean?, string? Download without raising transport errors
 local http = {}
 
 -- json module --------------------------------------------------------

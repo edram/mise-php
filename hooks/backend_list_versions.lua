@@ -1,85 +1,61 @@
---- Lists available versions for a tool in this backend
---- Documentation: https://mise.jdx.dev/backend-plugin-development.html#backendlistversions
---- @param ctx {tool: string} Context (tool = the tool name requested)
---- @return {versions: string[]} Table containing list of available versions
+package.path = RUNTIME.pluginDirPath .. "/?.lua;" .. package.path
+
+local http = require("http")
+local json = require("json")
+local semver = require("semver")
+local php = require("lib.php")
+
+local function release_has_assets(release, archive_name)
+    local archive_found = false
+    local checksum_found = false
+
+    for _, asset in ipairs(release.assets or {}) do
+        archive_found = archive_found or asset.name == archive_name
+        checksum_found = checksum_found or asset.name == archive_name .. ".sha256"
+    end
+
+    return archive_found and checksum_found
+end
+
 function PLUGIN:BackendListVersions(ctx)
-    local tool = ctx.tool
+    local preset = php.preset(ctx.tool)
+    local platform = php.platform()
+    local arch = php.arch()
 
-    -- Validate tool name
-    if not tool or tool == "" then
-        error("Tool name cannot be empty")
-    end
-
-    -- Example implementations (choose/modify based on your backend):
-
-    -- Example 1: API-based version listing (like npm, pip, cargo)
-    local http = require("http")
-    local json = require("json")
-
-    -- Replace with your backend's API endpoint
-    local api_url = "https://api.<BACKEND>.org/packages/" .. tool .. "/versions"
-
-    local resp, err = http.get({
-        url = api_url,
-        -- headers = { ["Authorization"] = "Bearer " .. token } -- if needed
+    local response, request_error = http.try_get({
+        url = php.RELEASES_API_URL,
+        headers = php.api_headers(),
     })
-
-    if err then
-        error("Failed to fetch versions for " .. tool .. ": " .. err)
+    if request_error ~= nil then
+        error("Failed to fetch PHP releases: " .. request_error)
+    end
+    if response == nil then
+        error("GitHub Releases API returned no response")
+    end
+    if response.status_code ~= 200 then
+        error("GitHub Releases API returned HTTP " .. response.status_code)
     end
 
-    if resp.status_code ~= 200 then
-        error("API returned status " .. resp.status_code .. " for " .. tool)
+    local decoded_ok, releases = pcall(json.decode, response.body)
+    if not decoded_ok or type(releases) ~= "table" then
+        error("Failed to parse the GitHub Releases response")
     end
 
-    local data = json.decode(resp.body)
     local versions = {}
+    for _, release in ipairs(releases) do
+        if not release.draft and not release.prerelease then
+            local version = php.version_from_tag(release.tag_name, preset)
+            local archive_name = version and php.archive_name(version, preset, platform, arch)
 
-    -- Parse versions from API response (adjust based on your API structure)
-    if data.versions then
-        for _, version in ipairs(data.versions) do
-            table.insert(versions, version)
+            if archive_name and release_has_assets(release, archive_name) then
+                table.insert(versions, version)
+            end
         end
     end
 
-    -- Example 2: Command-line based version listing
-    --[[
-    local cmd = require("cmd")
-
-    -- Replace with your backend's command to list versions
-    local command = "<BACKEND> search " .. tool .. " --versions"
-    local result = cmd.exec(command)
-
-    if not result or result:match("error") then
-        error("Failed to fetch versions for " .. tool)
-    end
-
-    local versions = {}
-    -- Parse command output to extract versions
-    for version in result:gmatch("[%d%.]+[%w%-]*") do
-        table.insert(versions, version)
-    end
-    --]]
-
-    -- Example 3: Registry file parsing
-    --[[
-    local file = require("file")
-
-    -- Replace with path to your backend's registry or manifest
-    local registry_path = "/path/to/<BACKEND>/registry/" .. tool .. ".json"
-
-    if not file.exists(registry_path) then
-        error("Tool " .. tool .. " not found in registry")
-    end
-
-    local content = file.read(registry_path)
-    local data = json.decode(content)
-    local versions = data.versions or {}
-    --]]
-
     if #versions == 0 then
-        error("No versions found for " .. tool)
+        error("No " .. preset .. " PHP builds are available for " .. platform .. "-" .. arch)
     end
 
-    return { versions = versions }
+    return { versions = semver.sort(versions) }
 end

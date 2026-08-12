@@ -1,42 +1,47 @@
 #!/usr/bin/env bash
-#MISE description="Run backend plugin tests - test plugin linking and basic functionality"
+#MISE description="Test version discovery, installation, and execution"
 set -euo pipefail
 
-# Link the plugin for testing
-mise plugin link --force <BACKEND> .
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+test_dir="$(mktemp -d)"
+trap 'rm -rf "$test_dir"' EXIT
 
-# Clear cache to ensure fresh testing
-mise cache clear
+export MISE_CACHE_DIR="$test_dir/cache"
+export MISE_CONFIG_DIR="$test_dir/config"
+export MISE_DATA_DIR="$test_dir/data"
+export MISE_EXPERIMENTAL=1
+export MISE_STATE_DIR="$test_dir/state"
+export MISE_USE_VERSIONS_HOST=0
 
-# Test that the plugin can list tools (this should work even if no tools are available)
-echo "Testing plugin linking and basic functionality..."
+mise_test() {
+    mise --no-config "$@"
+}
 
-# Try to list available versions for a test tool
-# Note: This will likely fail until you implement the backend methods
-# Replace <TEST_TOOL> with a real tool name your backend supports
-TEST_TOOL="<TEST_TOOL>"
+mise_test plugins link --force php "$root_dir"
 
-echo "Testing version listing for ${TEST_TOOL}..."
-if mise ls-remote <BACKEND>:${TEST_TOOL} 2>/dev/null; then
-    echo "✓ Version listing works"
-else
-    echo "⚠ Version listing failed - implement backend_list_versions.lua for your backend"
+if mise_test ls-remote php:unsupported > /dev/null 2>&1; then
+    echo "Unsupported PHP presets must be rejected" >&2
+    exit 1
 fi
 
-# Test installation if versions are available
-echo "Testing installation..."
-if mise install <BACKEND>:${TEST_TOOL}@latest 2>/dev/null; then
-    echo "✓ Installation works"
-    
-    # Test that the tool can be executed
-    if mise exec <BACKEND>:${TEST_TOOL}@latest -- ${TEST_TOOL} --version 2>/dev/null; then
-        echo "✓ Tool execution works"
-    else
-        echo "⚠ Tool execution failed - check backend_exec_env.lua implementation"
-    fi
-else
-    echo "⚠ Installation failed - implement backend_install.lua for your backend"
+version="$(mise_test ls-remote php:minimal | tail -n 1)"
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Invalid PHP version returned by the plugin: $version" >&2
+    exit 1
 fi
 
-echo "✓ Basic plugin structure tests completed"
-echo "Note: Replace <TEST_TOOL> with a real tool and implement the backend methods"
+mise_test install --force "php:minimal@$version"
+
+install_path="$(mise_test where "php:minimal@$version")"
+if [[ ! -x "$install_path/bin/php" ]]; then
+    echo "PHP was not installed at $install_path/bin/php" >&2
+    exit 1
+fi
+
+installed_version="$(mise_test exec "php:minimal@$version" -- php -r 'echo PHP_VERSION;')"
+if [[ "$installed_version" != "$version" ]]; then
+    echo "Expected PHP $version, got $installed_version" >&2
+    exit 1
+fi
+
+echo "Installed and executed PHP $installed_version"
