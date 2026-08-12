@@ -4,6 +4,7 @@ local archiver = require("archiver")
 local cmd = require("cmd")
 local file = require("file")
 local http = require("http")
+local json = require("json")
 local php = require("lib.php")
 
 local function download(url, path)
@@ -37,9 +38,35 @@ local function sha256(path)
     return hash:lower()
 end
 
-local function verify_checksum(archive_path, checksum_path, archive_name)
-    local expected = php.checksum_for(file.read(checksum_path), archive_name)
+local function release_asset_sha256(tag, archive_name)
+    local response, request_error = http.try_get({
+        url = php.release_api_url(tag),
+        headers = php.api_headers(),
+    })
+    if request_error ~= nil then
+        error("Failed to fetch PHP release metadata: " .. request_error)
+    end
+    if response == nil then
+        error("GitHub Releases API returned no response")
+    end
+    if response.status_code ~= 200 then
+        error("GitHub Releases API returned HTTP " .. response.status_code)
+    end
 
+    local decoded_ok, release = pcall(json.decode, response.body)
+    if not decoded_ok or type(release) ~= "table" then
+        error("Failed to parse the GitHub Release response")
+    end
+
+    local expected = php.release_asset_sha256(release, archive_name)
+    if expected == nil then
+        error("GitHub Release has no SHA-256 digest for " .. archive_name)
+    end
+
+    return expected
+end
+
+local function verify_sha256(archive_path, expected, archive_name)
     if sha256(archive_path) ~= expected:lower() then
         error("SHA-256 checksum mismatch for " .. archive_name)
     end
@@ -67,14 +94,13 @@ function PLUGIN:BackendInstall(ctx)
     local tag = php.tag(version, sapi, channel)
     local archive_name = php.archive_name(version, sapi, channel, platform, arch)
     local archive_path = file.join_path(download_path, archive_name)
-    local checksum_path = file.join_path(download_path, php.CHECKSUMS_NAME)
     local bin_path = file.join_path(install_path, "bin")
     local php_path = file.join_path(bin_path, "php")
+    local expected_sha256 = release_asset_sha256(tag, archive_name)
 
     cmd.exec("mkdir -p " .. php.shell_quote(download_path) .. " " .. php.shell_quote(bin_path))
     download(php.download_url(tag, archive_name), archive_path)
-    download(php.download_url(tag, php.CHECKSUMS_NAME), checksum_path)
-    verify_checksum(archive_path, checksum_path, archive_name)
+    verify_sha256(archive_path, expected_sha256, archive_name)
 
     local extract_error = archiver.decompress(archive_path, bin_path)
     if extract_error ~= nil then
@@ -86,7 +112,6 @@ function PLUGIN:BackendInstall(ctx)
 
     cmd.exec("chmod +x " .. php.shell_quote(php_path))
     os.remove(archive_path)
-    os.remove(checksum_path)
 
     return {}
 end

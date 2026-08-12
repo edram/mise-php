@@ -1,9 +1,9 @@
 local M = {}
 
 M.REPOSITORY = "edram/mise-php"
-M.RELEASES_API_URL = "https://api.github.com/repos/" .. M.REPOSITORY .. "/releases?per_page=100"
+M.API_URL = "https://api.github.com/repos/" .. M.REPOSITORY
+M.RELEASES_API_URL = M.API_URL .. "/releases?per_page=100"
 M.RELEASES_URL = "https://github.com/" .. M.REPOSITORY .. "/releases/download"
-M.CHECKSUMS_NAME = "checksums.txt"
 M.USER_AGENT = "mise-php/" .. ((PLUGIN and PLUGIN.version) or "unknown")
 
 M.CHANNELS = {
@@ -99,15 +99,23 @@ function M.download_url(tag, filename)
     return M.RELEASES_URL .. "/" .. tag .. "/" .. filename
 end
 
-function M.checksum_for(checksums, filename)
-    for line in tostring(checksums or ""):gmatch("[^\r\n]+") do
-        local hash, listed_name = line:match("^%s*([0-9a-fA-F]+)%s+%*?([^%s]+)%s*$")
-        if listed_name == filename and #hash == 64 then
-            return hash:lower()
+function M.release_api_url(tag)
+    return M.API_URL .. "/releases/tags/" .. tag
+end
+
+function M.release_asset_sha256(release, filename)
+    for _, asset in ipairs(release.assets or {}) do
+        if asset.name == filename then
+            local hash = tostring(asset.digest or ""):match("^sha256:([0-9a-fA-F]+)$")
+            if hash ~= nil and #hash == 64 then
+                return hash:lower()
+            end
+
+            return nil
         end
     end
 
-    error("Checksum not found for " .. filename)
+    return nil
 end
 
 function M.download_headers()

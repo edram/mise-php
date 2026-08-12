@@ -5,18 +5,6 @@ local json = require("json")
 local semver = require("semver")
 local php = require("lib.php")
 
-local function release_has_assets(release, archive_name)
-    local archive_found = false
-    local checksums_found = false
-
-    for _, asset in ipairs(release.assets or {}) do
-        archive_found = archive_found or asset.name == archive_name
-        checksums_found = checksums_found or asset.name == php.CHECKSUMS_NAME
-    end
-
-    return archive_found and checksums_found
-end
-
 function PLUGIN:BackendListVersions(ctx)
     local sapi = php.sapi(ctx.tool)
     local channel = php.channel(ctx)
@@ -48,7 +36,7 @@ function PLUGIN:BackendListVersions(ctx)
             local version = php.version_from_tag(release.tag_name, sapi, channel)
             local archive_name = version and php.archive_name(version, sapi, channel, platform, arch)
 
-            if archive_name and release_has_assets(release, archive_name) then
+            if archive_name and php.release_asset_sha256(release, archive_name) then
                 table.insert(versions, version)
             end
         end
