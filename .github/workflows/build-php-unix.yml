@@ -73,7 +73,7 @@ jobs:
           esac
 
       - name: Checkout StaticPHP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: crazywhalecc/static-php-cli
           ref: v3
@@ -87,7 +87,7 @@ jobs:
           ini-values: memory_limit=-1
 
       - name: Cache Composer packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: vendor
           key: composer-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('composer.lock') }}
@@ -95,7 +95,7 @@ jobs:
             composer-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Cache downloaded build artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: downloads
           key: spc-v3-${{ env.PHP_VERSION }}-${{ matrix.target }}-${{ env.BUILD_CHANNEL }}
@@ -155,7 +155,7 @@ jobs:
           echo "archive_name=$ARCHIVE_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Upload PHP archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: php-${{ steps.package.outputs.php_version }}-${{ env.PHP_SAPI }}-${{ env.BUILD_CHANNEL }}-${{ matrix.target }}
           path: dist/*
@@ -188,7 +188,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: spc-logs-${{ env.PHP_VERSION }}-${{ matrix.target }}
           path: log/*.log
