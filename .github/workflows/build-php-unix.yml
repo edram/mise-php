@@ -21,11 +21,6 @@ on:
         options:
           - common
           - minimal
-      publish:
-        description: Publish each successful build immediately
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -168,7 +163,6 @@ jobs:
           retention-days: 14
 
       - name: Publish release
-        if: inputs.publish
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
