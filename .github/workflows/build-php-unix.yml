@@ -149,14 +149,12 @@ jobs:
             exit 1
           fi
 
-          PACKAGE_ROOT="package/php-$PHP_PATCH_VERSION-$BUILD_PRESET-${{ matrix.target }}"
+          PACKAGE_ROOT="package"
           ARCHIVE_NAME="php-$PHP_PATCH_VERSION-$BUILD_PRESET-${{ matrix.target }}.tar.gz"
           ARCHIVE="dist/$ARCHIVE_NAME"
-          mkdir -p "$PACKAGE_ROOT/bin" "$PACKAGE_ROOT/share/mise-php" dist
-          install -m 755 buildroot/bin/php "$PACKAGE_ROOT/bin/php"
-          cp buildroot/build-manifest.json "$PACKAGE_ROOT/share/mise-php/"
-          cp -R buildroot/license "$PACKAGE_ROOT/share/mise-php/"
-          tar -czf "$ARCHIVE" -C "$PACKAGE_ROOT" .
+          mkdir -p "$PACKAGE_ROOT" dist
+          install -m 755 buildroot/bin/php "$PACKAGE_ROOT/php"
+          tar -czf "$ARCHIVE" -C "$PACKAGE_ROOT" php
           (
             cd dist
             shasum -a 256 "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
