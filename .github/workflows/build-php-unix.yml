@@ -1,10 +1,6 @@
 name: Build PHP (Unix)
 
 on:
-  push:
-    branches: [ci]
-    paths:
-      - ".github/workflows/build-php-unix.yml"
   workflow_dispatch:
     inputs:
       php_version:
@@ -182,7 +178,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    if: github.event_name == 'push' || inputs.publish
+    if: inputs.publish
     needs: build
     runs-on: ubuntu-latest
     environment: release
