@@ -237,11 +237,19 @@ jobs:
       - name: Publish release
         shell: bash
         run: |
-          gh release create "${{ steps.release.outputs.tag }}" \
-            release/*.tar.gz \
-            release/*.sha256 \
-            release/SHA256SUMS \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
-            --title "PHP ${{ steps.release.outputs.php_version }} ($BUILD_PRESET)" \
-            --notes "Precompiled PHP ${{ steps.release.outputs.php_version }} with the $BUILD_PRESET extension preset."
+          TAG="${{ steps.release.outputs.tag }}"
+          ASSETS=(release/*.tar.gz release/*.sha256 release/SHA256SUMS)
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" \
+              "${ASSETS[@]}" \
+              --clobber \
+              --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" \
+              "${ASSETS[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "PHP ${{ steps.release.outputs.php_version }} ($BUILD_PRESET)" \
+              --notes "Precompiled PHP ${{ steps.release.outputs.php_version }} with the $BUILD_PRESET extension preset."
+          fi
