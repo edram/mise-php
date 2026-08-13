@@ -28,9 +28,10 @@ php -v
 composer --version
 ```
 
-Select the `minimal` channel with mise tool options:
+Select another channel with mise tool options:
 
 ```bash
+mise use 'php:cli[channel=laravel]@8.5'
 mise use 'php:cli[channel=minimal]@8.5'
 ```
 
@@ -62,10 +63,16 @@ mise plugins update php
 | Channel | Purpose |
 | --- | --- |
 | `common` | CLI build with database, network, image, XML, archive, and Redis support (default) |
+| `laravel` | Herd-inspired CLI build for Laravel applications |
 | `minimal` | Upstream minimal CLI build with additional PHP extensions for Composer |
 
 The `minimal` channel adds `openssl` for HTTPS downloads and `zip` for extracting ZIP packages. All other extensions
 match StaticPHP's upstream minimal build.
+
+The `laravel` channel follows [Laravel Herd's included extension set](https://herd.laravel.com/docs/macos/technology/php-extensions)
+where portable static builds allow it. It omits `ffi` because the Linux musl build cannot use it, and omits `sqlsrv`
+and `pdo_sqlsrv` because they require Microsoft's external ODBC driver. It includes `mbregex` and `mysqlnd` to
+complete StaticPHP's multibyte-regex and MySQL support.
 
 Channel definitions live in [`channels.json`](channels.json). Each entry contains the extensions and extra StaticPHP
 build options for that channel. When adding one, also expose its name in the build workflow's `channel` options.

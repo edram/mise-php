@@ -20,6 +20,7 @@ on:
         type: choice
         options:
           - common
+          - laravel
           - minimal
 
 permissions:
