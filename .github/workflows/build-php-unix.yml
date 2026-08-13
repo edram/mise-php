@@ -49,16 +49,16 @@ jobs:
         include:
           - target: linux-x86_64
             runner: ubuntu-latest
-            upx: true
+            upx_supported: true
           - target: linux-aarch64
             runner: ubuntu-24.04-arm
-            upx: true
+            upx_supported: true
           - target: macos-x86_64
             runner: macos-15-intel
-            upx: false
+            upx_supported: false
           - target: macos-aarch64
             runner: macos-15
-            upx: false
+            upx_supported: false
 
     steps:
       - name: Checkout build configuration
@@ -77,11 +77,14 @@ jobs:
         id: channel
         shell: bash
         working-directory: mise-php
+        env:
+          UPX_SUPPORTED: ${{ matrix.upx_supported }}
         run: |
-          jq -r --arg channel "$BUILD_CHANNEL" '
+          jq -r --arg channel "$BUILD_CHANNEL" --argjson upx_supported "$UPX_SUPPORTED" '
             .[$channel] |
             "extensions=\(.extensions | join(","))",
-            "build_options=\(.build_options | tojson)"
+            "build_options=\(.build_options | tojson)",
+            "upx_enabled=\(.upx and $upx_supported)"
           ' channels.json >> "$GITHUB_OUTPUT"
 
       - name: Setup PHP build runtime
@@ -113,7 +116,7 @@ jobs:
         run: bin/spc doctor --auto-fix
 
       - name: Install UPX
-        if: matrix.upx
+        if: steps.channel.outputs.upx_enabled == 'true'
         run: bin/spc install-pkg upx
 
       - name: Build PHP CLI
@@ -121,9 +124,10 @@ jobs:
         env:
           EXTENSIONS: ${{ steps.channel.outputs.extensions }}
           CHANNEL_BUILD_OPTIONS: ${{ steps.channel.outputs.build_options }}
+          UPX_ENABLED: ${{ steps.channel.outputs.upx_enabled }}
         run: |
           BUILD_OPTIONS=(--build-cli --debug)
-          if [[ "${{ matrix.upx }}" == "true" ]]; then
+          if [[ "$UPX_ENABLED" == "true" ]]; then
             BUILD_OPTIONS+=(--with-upx-pack)
           fi
           while IFS= read -r OPTION; do

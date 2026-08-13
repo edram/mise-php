@@ -12,7 +12,8 @@
       "openssl",
       "zip"
     ],
-    "build_options": []
+    "build_options": [],
+    "upx": true
   },
   "common": {
     "description": "CLI build with database, network, image, XML, archive, and Redis support",
@@ -57,7 +58,8 @@
     ],
     "build_options": [
       "--with-suggests"
-    ]
+    ],
+    "upx": true
   },
   "laravel": {
     "description": "Herd-inspired CLI build for Laravel applications",
@@ -119,6 +121,7 @@
     ],
     "build_options": [
       "--with-suggests"
-    ]
+    ],
+    "upx": false
   }
 }
