@@ -124,8 +124,7 @@ local function verify_sha256(archive_path, expected, archive_name)
 end
 
 function PLUGIN:BackendInstall(ctx)
-    local sapi = php.sapi(ctx.tool)
-    local channel = php.channel(ctx)
+    local sapi, channel = php.parse_tool(ctx.tool)
     local version = tostring(ctx.version or "")
     local install_path = tostring(ctx.install_path or "")
     local download_path = tostring(ctx.download_path or "")

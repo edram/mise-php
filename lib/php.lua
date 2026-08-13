@@ -23,23 +23,15 @@ local function runtime_field(name)
     return tostring(value)
 end
 
-function M.sapi(tool)
-    local sapi = tostring(tool or "")
+-- Keeping the channel in the tool name gives each build its own mise install path.
+function M.parse_tool(tool)
+    local value = tostring(tool or "")
+    local sapi, channel = value:match("^([a-z0-9]+)%-([a-z0-9][a-z0-9_-]*)$")
     if not M.SAPIS[sapi] then
-        error("Unsupported PHP tool: " .. sapi .. ". Use php:cli.")
+        error("Unsupported PHP tool: " .. value .. ". Use php:cli-<channel>.")
     end
 
-    return sapi
-end
-
-function M.channel(ctx)
-    local channel = tostring((ctx.options or {}).channel or "common")
-    -- Channel names become URL path and Lua pattern segments, so keep their syntax inert.
-    if not channel:match("^[a-z0-9][a-z0-9_-]*$") then
-        error("Invalid PHP channel: " .. channel .. ". Use lowercase letters, numbers, hyphens, or underscores.")
-    end
-
-    return channel
+    return sapi, channel
 end
 
 function M.platform()

@@ -19,13 +19,18 @@ local root_dir = assert(arg[1])
 PLUGIN = { version = "test" }
 local php = dofile(root_dir .. "/lib/php.lua")
 
-assert(php.channel({ options = {} }) == "common")
-assert(php.channel({ options = { channel = "future-channel" } }) == "future-channel")
+local sapi, channel = php.parse_tool("cli-common")
+assert(sapi == "cli")
+assert(channel == "common")
 
-for _, channel in ipairs({ "", "../laravel", "laravel.*", "Laravel" }) do
-    local valid, validation_error = pcall(php.channel, { options = { channel = channel } })
+sapi, channel = php.parse_tool("cli-future-channel")
+assert(sapi == "cli")
+assert(channel == "future-channel")
+
+for _, tool in ipairs({ "cli", "cli-", "cli-../laravel", "cli-laravel.*", "cli-Laravel", "fpm-common" }) do
+    local valid, validation_error = pcall(php.parse_tool, tool)
     assert(not valid)
-    assert(tostring(validation_error):match("Invalid PHP channel"))
+    assert(tostring(validation_error):match("Unsupported PHP tool"))
 end
 
 assert(php.tag("8.5.9", "cli", "common") == "php-8.5.9-cli-common")
@@ -68,11 +73,11 @@ fi
 mkdir -p "$project_dir"
 printf '%s\n' \
     '[tools]' \
-    '"php:cli" = { version = "8.5", channel = "common" }' \
+    '"php:cli-common" = "8.5"' \
     > "$project_dir/mise.toml"
 mise_test trust
 
-version="$(mise_test ls-remote php:cli | tail -n 1)"
+version="$(mise_test ls-remote php:cli-common | tail -n 1)"
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "Invalid PHP version returned by the plugin: $version" >&2
     exit 1
@@ -80,7 +85,11 @@ fi
 
 mise_test install
 
-install_path="$(mise_test where php:cli)"
+install_path="$(mise_test where php:cli-common)"
+if [[ "$install_path" != "$MISE_DATA_DIR/installs/php-cli-common/"* ]]; then
+    echo "PHP common channel used an unexpected install path: $install_path" >&2
+    exit 1
+fi
 if [[ ! -x "$install_path/bin/php" ]]; then
     echo "PHP was not installed at $install_path/bin/php" >&2
     exit 1

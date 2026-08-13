@@ -6,8 +6,7 @@ local semver = require("semver")
 local php = require("lib.php")
 
 function PLUGIN:BackendListVersions(ctx)
-    local sapi = php.sapi(ctx.tool)
-    local channel = php.channel(ctx)
+    local sapi, channel = php.parse_tool(ctx.tool)
     local platform = php.platform()
     local arch = php.arch()
 

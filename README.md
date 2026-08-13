@@ -20,34 +20,34 @@ mise settings experimental=true
 mise plugins install php https://github.com/edram/mise-php
 ```
 
-Install the PHP CLI with the default `common` extension channel:
+Install the PHP CLI with the `common` extension channel:
 
 ```bash
-mise use php:cli@8.5
+mise use php:cli-common@8.5
 php -v
 composer --version
 ```
 
-Select another channel with mise tool options:
+Select another channel through the tool name:
 
 ```bash
-mise use 'php:cli[channel=laravel]@8.5'
-mise use 'php:cli[channel=minimal]@8.5'
+mise use php:cli-laravel@8.5
+mise use php:cli-minimal@8.5
 ```
 
 Fuzzy versions resolve through mise, so `@8.5` selects the latest published `8.5.x` build. Exact versions and
 `@latest` are also supported:
 
 ```bash
-mise use php:cli@8.5.9
-mise use php:cli@latest
+mise use php:cli-common@8.5.9
+mise use php:cli-common@latest
 ```
 
-The channel option is stored in `mise.toml` using the equivalent structured tool form:
+The selected channel is stored in `mise.toml` as part of the tool name:
 
 ```toml
 [tools]
-"php:cli" = { version = "8.5", channel = "minimal" }
+"php:cli-laravel" = "8.5"
 ```
 
 ## Update
@@ -62,7 +62,7 @@ mise plugins update php
 
 | Channel | Purpose |
 | --- | --- |
-| `common` | CLI build with database, network, image, XML, archive, and Redis support (default) |
+| `common` | CLI build with database, network, image, XML, archive, and Redis support |
 | `laravel` | Herd-inspired CLI build for Laravel applications |
 | `minimal` | Upstream minimal CLI build with additional PHP extensions for Composer |
 
@@ -80,7 +80,7 @@ build options for that channel. When adding one, also expose its name in the bui
 Only versions whose platform archive includes a GitHub-provided SHA-256 digest are returned:
 
 ```bash
-mise ls-remote php:cli
+mise ls-remote php:cli-common
 ```
 
 ## How installation works
@@ -128,7 +128,7 @@ mise run ci
 ```
 
 The integration test uses isolated mise data directories, links the local plugin as `php`, installs the latest
-`php:cli` release from the `common` channel, and executes PHP and Composer.
+`php:cli-common` release, and executes PHP and Composer.
 
 ## License
 
