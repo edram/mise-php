@@ -5,7 +5,6 @@ local cmd = require("cmd")
 local file = require("file")
 local http = require("http")
 local json = require("json")
-local channels = require("lib.channels").load()
 local php = require("lib.php")
 
 local COMPOSER_INSTALLER_URL = "https://getcomposer.org/installer"
@@ -126,7 +125,7 @@ end
 
 function PLUGIN:BackendInstall(ctx)
     local sapi = php.sapi(ctx.tool)
-    local channel = php.channel(ctx, channels)
+    local channel = php.channel(ctx)
     local version = tostring(ctx.version or "")
     local install_path = tostring(ctx.install_path or "")
     local download_path = tostring(ctx.download_path or "")

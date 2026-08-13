@@ -19,16 +19,14 @@ local root_dir = assert(arg[1])
 PLUGIN = { version = "test" }
 local php = dofile(root_dir .. "/lib/php.lua")
 
-local channels = {
-    common = {},
-    staging = {},
-}
-assert(php.channel({ options = {} }, channels) == "common")
-assert(php.channel({ options = { channel = "staging" } }, channels) == "staging")
+assert(php.channel({ options = {} }) == "common")
+assert(php.channel({ options = { channel = "future-channel" } }) == "future-channel")
 
-local valid, validation_error = pcall(php.channel, { options = { channel = "minimal" } }, channels)
-assert(not valid)
-assert(tostring(validation_error):match("Unsupported PHP channel: minimal"))
+for _, channel in ipairs({ "", "../laravel", "laravel.*", "Laravel" }) do
+    local valid, validation_error = pcall(php.channel, { options = { channel = channel } })
+    assert(not valid)
+    assert(tostring(validation_error):match("Invalid PHP channel"))
+end
 
 assert(php.tag("8.5.9", "cli", "common") == "php-8.5.9-cli-common")
 assert(

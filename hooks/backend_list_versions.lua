@@ -3,12 +3,11 @@ package.path = RUNTIME.pluginDirPath .. "/?.lua;" .. package.path
 local http = require("http")
 local json = require("json")
 local semver = require("semver")
-local channels = require("lib.channels").load()
 local php = require("lib.php")
 
 function PLUGIN:BackendListVersions(ctx)
     local sapi = php.sapi(ctx.tool)
-    local channel = php.channel(ctx, channels)
+    local channel = php.channel(ctx)
     local platform = php.platform()
     local arch = php.arch()
 

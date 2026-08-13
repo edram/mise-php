@@ -32,10 +32,11 @@ function M.sapi(tool)
     return sapi
 end
 
-function M.channel(ctx, channels)
+function M.channel(ctx)
     local channel = tostring((ctx.options or {}).channel or "common")
-    if type(channels) ~= "table" or type(channels[channel]) ~= "table" then
-        error("Unsupported PHP channel: " .. channel)
+    -- Channel names become URL path and Lua pattern segments, so keep their syntax inert.
+    if not channel:match("^[a-z0-9][a-z0-9_-]*$") then
+        error("Invalid PHP channel: " .. channel .. ". Use lowercase letters, numbers, hyphens, or underscores.")
     end
 
     return channel
