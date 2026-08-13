@@ -10,9 +10,9 @@ A [mise](https://mise.jdx.dev) backend plugin for precompiled PHP binaries built
 - `x86_64` or `aarch64`
 - `sha256sum` or `shasum`
 
-Windows builds are not available yet.
-
 ## Install
+
+Enable experimental backend plugins and install `mise-php` as the `php` plugin:
 
 ```bash
 mise settings experimental=true
@@ -26,6 +26,12 @@ mise use php:cli@8.5
 php -v
 ```
 
+Select the `minimal` channel with mise tool options:
+
+```bash
+mise use 'php:cli[channel=minimal]@8.5'
+```
+
 Fuzzy versions resolve through mise, so `@8.5` selects the latest published `8.5.x` build. Exact versions and
 `@latest` are also supported:
 
@@ -34,11 +40,19 @@ mise use php:cli@8.5.9
 mise use php:cli@latest
 ```
 
-To select a channel, use the structured tool form in `mise.toml`:
+The channel option is stored in `mise.toml` using the equivalent structured tool form:
 
 ```toml
 [tools]
-"php:cli" = { version = "8.5", channel = "common" }
+"php:cli" = { version = "8.5", channel = "minimal" }
+```
+
+## Update
+
+Update the plugin itself to the latest commit:
+
+```bash
+mise plugins update php
 ```
 
 ## Channels
