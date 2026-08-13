@@ -70,7 +70,7 @@ fi
 mkdir -p "$project_dir"
 printf '%s\n' \
     '[tools]' \
-    '"php:cli" = { version = "8.5", channel = "minimal" }' \
+    '"php:cli" = { version = "8.5", channel = "common" }' \
     > "$project_dir/mise.toml"
 mise_test trust
 
@@ -94,4 +94,10 @@ if [[ "$installed_version" != "$version" ]]; then
     exit 1
 fi
 
-echo "Installed and executed PHP $installed_version"
+composer_version="$(mise_test exec -- composer --version --no-ansi)"
+if [[ ! "$composer_version" =~ ^Composer\ version\ 2\. ]]; then
+    echo "Invalid Composer version: $composer_version" >&2
+    exit 1
+fi
+
+echo "Installed PHP $installed_version and $composer_version"

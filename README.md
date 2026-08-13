@@ -1,7 +1,8 @@
 # mise-php
 
 A [mise](https://mise.jdx.dev) backend plugin for precompiled PHP binaries built with
-[StaticPHP](https://static-php.dev). It installs PHP without compiling source code or installing system packages.
+[StaticPHP](https://static-php.dev). It installs PHP and Composer without compiling source code or installing system
+packages.
 
 ## Requirements
 
@@ -24,6 +25,7 @@ Install the PHP CLI with the default `common` extension channel:
 ```bash
 mise use php:cli@8.5
 php -v
+composer --version
 ```
 
 Select the `minimal` channel with mise tool options:
@@ -60,7 +62,10 @@ mise plugins update php
 | Channel | Purpose |
 | --- | --- |
 | `common` | CLI build with database, network, image, XML, archive, and Redis support (default) |
-| `minimal` | Smaller CLI build with the extensions needed by common PHP tooling |
+| `minimal` | Upstream minimal CLI build with additional PHP extensions for Composer |
+
+The `minimal` channel adds `openssl` for HTTPS downloads and `zip` for extracting ZIP packages. All other extensions
+match StaticPHP's upstream minimal build.
 
 Channel definitions live in [`channels.json`](channels.json). Each entry contains the extensions and extra StaticPHP
 build options for that channel. When adding one, also expose its name in the build workflow's `channel` options.
@@ -93,10 +98,14 @@ During installation the plugin:
 1. detects the platform and architecture through mise;
 2. reads the archive's SHA-256 digest from the GitHub Releases API;
 3. downloads and verifies the archive before extracting it;
-4. installs the executable as `<install_path>/bin/php`;
-5. adds `<install_path>/bin` to `PATH` through `BackendExecEnv`.
+4. installs PHP as `<install_path>/bin/php`;
+5. verifies and installs Composer as `<install_path>/bin/composer`;
+6. adds `<install_path>/bin` to `PATH` through `BackendExecEnv`.
 
 Each archive must contain a single executable named `php` at its root.
+
+Each PHP installation gets its own Composer executable. Composer configuration and cache continue to use Composer's
+default global directories.
 
 ## Development
 
@@ -112,7 +121,7 @@ mise run ci
 ```
 
 The integration test uses isolated mise data directories, links the local plugin as `php`, installs the latest
-`php:cli` release from the `minimal` channel, and executes the installed binary.
+`php:cli` release from the `common` channel, and executes PHP and Composer.
 
 ## License
 

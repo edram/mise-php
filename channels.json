@@ -1,6 +1,6 @@
 {
   "minimal": {
-    "description": "Smaller CLI build with the extensions needed by common PHP tooling",
+    "description": "Smaller Composer-ready CLI build with OpenSSL and ZIP support",
     "extensions": [
       "iconv",
       "pcntl",
@@ -8,7 +8,9 @@
       "mbstring",
       "filter",
       "tokenizer",
-      "phar"
+      "phar",
+      "openssl",
+      "zip"
     ],
     "build_options": []
   },

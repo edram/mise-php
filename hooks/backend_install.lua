@@ -8,6 +8,9 @@ local json = require("json")
 local channels = require("lib.channels").load()
 local php = require("lib.php")
 
+local COMPOSER_INSTALLER_URL = "https://getcomposer.org/installer"
+local COMPOSER_SIGNATURE_URL = "https://composer.github.io/installer.sig"
+
 local function download(url, path)
     local ok, download_error = http.try_download_file({
         url = url,
@@ -17,6 +20,54 @@ local function download(url, path)
     if download_error ~= nil or not ok then
         error("Failed to download " .. url .. ": " .. tostring(download_error or "unknown error"))
     end
+end
+
+local function install_composer(php_path, bin_path, download_path)
+    local installer_path = file.join_path(download_path, "composer-setup.php")
+    local composer_path = file.join_path(bin_path, "composer")
+
+    download(COMPOSER_INSTALLER_URL, installer_path)
+
+    -- Composer publishes the current installer's SHA-384 digest separately.
+    -- See: https://getcomposer.org/download/
+    local response, request_error = http.try_get({
+        url = COMPOSER_SIGNATURE_URL,
+        headers = php.download_headers(),
+    })
+    if request_error ~= nil or response == nil or response.status_code ~= 200 then
+        error("Failed to download the Composer installer signature")
+    end
+
+    local expected = response.body:match("^%s*([0-9a-fA-F]+)%s*$")
+    if expected == nil or #expected ~= 96 then
+        error("Invalid Composer installer signature")
+    end
+
+    local hash_script = "echo hash_file('sha384', $argv[1]);"
+    local actual = cmd.exec(
+        php.shell_quote(php_path) .. " -r " .. php.shell_quote(hash_script) .. " " .. php.shell_quote(installer_path)
+    ):match("([0-9a-fA-F]+)")
+    if actual == nil or actual:lower() ~= expected:lower() then
+        error("Composer installer signature verification failed")
+    end
+
+    cmd.exec(
+        "COMPOSER_ALLOW_SUPERUSER=1 "
+            .. php.shell_quote(php_path)
+            .. " "
+            .. php.shell_quote(installer_path)
+            .. " --quiet "
+            .. php.shell_quote("--install-dir=" .. bin_path)
+            .. " --filename=composer"
+    )
+    os.remove(installer_path)
+    cmd.exec(
+        "COMPOSER_ALLOW_SUPERUSER=1 "
+            .. php.shell_quote(php_path)
+            .. " "
+            .. php.shell_quote(composer_path)
+            .. " --version --no-ansi"
+    )
 end
 
 local function sha256(path)
@@ -112,6 +163,9 @@ function PLUGIN:BackendInstall(ctx)
     end
 
     cmd.exec("chmod +x " .. php.shell_quote(php_path))
+    if sapi == "cli" then
+        install_composer(php_path, bin_path, download_path)
+    end
     os.remove(archive_path)
 
     return {}
