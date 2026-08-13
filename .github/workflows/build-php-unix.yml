@@ -39,6 +39,9 @@ jobs:
     timeout-minutes: 240
     permissions:
       contents: write
+    defaults:
+      run:
+        working-directory: static-php-cli
     strategy:
       fail-fast: false
       matrix:
@@ -57,26 +60,28 @@ jobs:
             upx: false
 
     steps:
-      - name: Select extension channel
-        id: channel
-        shell: bash
-        run: |
-          case "$BUILD_CHANNEL" in
-            minimal)
-              echo "extensions=iconv,pcntl,posix,mbstring,filter,tokenizer,phar" >> "$GITHUB_OUTPUT"
-              echo "suggest=" >> "$GITHUB_OUTPUT"
-              ;;
-            common)
-              echo "extensions=bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,xml,mbstring,mbregex,mysqlnd,openssl,pcntl,pdo,pdo_mysql,pdo_sqlite,pdo_pgsql,pgsql,phar,posix,redis,session,simplexml,soap,sockets,sqlite3,tokenizer,xmlwriter,xmlreader,zlib,zip" >> "$GITHUB_OUTPUT"
-              echo "suggest=--with-suggests" >> "$GITHUB_OUTPUT"
-              ;;
-          esac
+      - name: Checkout build configuration
+        uses: actions/checkout@v6
+        with:
+          path: mise-php
 
       - name: Checkout StaticPHP
         uses: actions/checkout@v6
         with:
           repository: crazywhalecc/static-php-cli
           ref: v3
+          path: static-php-cli
+
+      - name: Select extension channel
+        id: channel
+        shell: bash
+        working-directory: mise-php
+        run: |
+          jq -r --arg channel "$BUILD_CHANNEL" '
+            .[$channel] |
+            "extensions=\(.extensions | join(","))",
+            "build_options=\(.build_options | tojson)"
+          ' channels.json >> "$GITHUB_OUTPUT"
 
       - name: Setup PHP build runtime
         uses: shivammathur/setup-php@v2
@@ -89,15 +94,15 @@ jobs:
       - name: Cache Composer packages
         uses: actions/cache@v5
         with:
-          path: vendor
-          key: composer-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('composer.lock') }}
+          path: static-php-cli/vendor
+          key: composer-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('static-php-cli/composer.lock') }}
           restore-keys: |
             composer-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Cache downloaded build artifacts
         uses: actions/cache@v5
         with:
-          path: downloads
+          path: static-php-cli/downloads
           key: spc-v3-${{ env.PHP_VERSION }}-${{ matrix.target }}-${{ env.BUILD_CHANNEL }}
 
       - name: Install StaticPHP dependencies
@@ -114,15 +119,15 @@ jobs:
         shell: bash
         env:
           EXTENSIONS: ${{ steps.channel.outputs.extensions }}
-          SUGGEST_OPTION: ${{ steps.channel.outputs.suggest }}
+          CHANNEL_BUILD_OPTIONS: ${{ steps.channel.outputs.build_options }}
         run: |
           BUILD_OPTIONS=(--build-cli --debug)
           if [[ "${{ matrix.upx }}" == "true" ]]; then
             BUILD_OPTIONS+=(--with-upx-pack)
           fi
-          if [[ -n "$SUGGEST_OPTION" ]]; then
-            BUILD_OPTIONS+=("$SUGGEST_OPTION")
-          fi
+          while IFS= read -r OPTION; do
+            BUILD_OPTIONS+=("$OPTION")
+          done < <(jq -r '.[]' <<< "$CHANNEL_BUILD_OPTIONS")
 
           bin/spc build \
             "${BUILD_OPTIONS[@]}" \
@@ -158,7 +163,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: php-${{ steps.package.outputs.php_version }}-${{ env.PHP_SAPI }}-${{ env.BUILD_CHANNEL }}-${{ matrix.target }}
-          path: dist/*
+          path: static-php-cli/dist/*
           if-no-files-found: error
           retention-days: 14
 
@@ -191,6 +196,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: spc-logs-${{ env.PHP_VERSION }}-${{ matrix.target }}
-          path: log/*.log
+          path: static-php-cli/log/*.log
           if-no-files-found: ignore
           retention-days: 14

@@ -48,6 +48,9 @@ To select a channel, use the structured tool form in `mise.toml`:
 | `common` | CLI build with database, network, image, XML, archive, and Redis support (default) |
 | `minimal` | Smaller CLI build with the extensions needed by common PHP tooling |
 
+Channel definitions live in [`channels.json`](channels.json). Each entry contains the extensions and extra StaticPHP
+build options for that channel. When adding one, also expose its name in the build workflow's `channel` options.
+
 Only versions whose platform archive includes a GitHub-provided SHA-256 digest are returned:
 
 ```bash
@@ -95,7 +98,7 @@ mise run ci
 ```
 
 The integration test uses isolated mise data directories, links the local plugin as `php`, installs the latest
-`php:cli` release from the `common` channel, and executes the installed binary.
+`php:cli` release from the `minimal` channel, and executes the installed binary.
 
 ## License
 

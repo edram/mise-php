@@ -1,0 +1,60 @@
+{
+  "minimal": {
+    "description": "Smaller CLI build with the extensions needed by common PHP tooling",
+    "extensions": [
+      "iconv",
+      "pcntl",
+      "posix",
+      "mbstring",
+      "filter",
+      "tokenizer",
+      "phar"
+    ],
+    "build_options": []
+  },
+  "common": {
+    "description": "CLI build with database, network, image, XML, archive, and Redis support",
+    "extensions": [
+      "bcmath",
+      "bz2",
+      "calendar",
+      "ctype",
+      "curl",
+      "dom",
+      "exif",
+      "fileinfo",
+      "filter",
+      "ftp",
+      "gd",
+      "gmp",
+      "iconv",
+      "xml",
+      "mbstring",
+      "mbregex",
+      "mysqlnd",
+      "openssl",
+      "pcntl",
+      "pdo",
+      "pdo_mysql",
+      "pdo_sqlite",
+      "pdo_pgsql",
+      "pgsql",
+      "phar",
+      "posix",
+      "redis",
+      "session",
+      "simplexml",
+      "soap",
+      "sockets",
+      "sqlite3",
+      "tokenizer",
+      "xmlwriter",
+      "xmlreader",
+      "zlib",
+      "zip"
+    ],
+    "build_options": [
+      "--with-suggests"
+    ]
+  }
+}

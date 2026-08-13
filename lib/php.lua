@@ -6,11 +6,6 @@ M.RELEASES_API_URL = M.API_URL .. "/releases?per_page=100"
 M.RELEASES_URL = "https://github.com/" .. M.REPOSITORY .. "/releases/download"
 M.USER_AGENT = "mise-php/" .. ((PLUGIN and PLUGIN.version) or "unknown")
 
-M.CHANNELS = {
-    common = true,
-    minimal = true,
-}
-
 M.SAPIS = {
     cli = true,
 }
@@ -37,10 +32,10 @@ function M.sapi(tool)
     return sapi
 end
 
-function M.channel(ctx)
+function M.channel(ctx, channels)
     local channel = tostring((ctx.options or {}).channel or "common")
-    if not M.CHANNELS[channel] then
-        error("Unsupported PHP channel: " .. channel .. ". Use minimal or common.")
+    if type(channels) ~= "table" or type(channels[channel]) ~= "table" then
+        error("Unsupported PHP channel: " .. channel)
     end
 
     return channel
