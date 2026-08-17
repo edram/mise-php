@@ -78,6 +78,7 @@ The `minimal` channel adds `openssl` for HTTPS downloads and `zip` for extractin
 match StaticPHP's upstream minimal build.
 
 The `laravel` channel follows [Laravel Herd's included extension set](https://herd.laravel.com/docs/macos/technology/php-extensions).
+On GNU/Linux, `sqlsrv` and `pdo_sqlsrv` are packaged as shared extensions so they can use the host's Microsoft ODBC Driver.
 
 Channel definitions live in [`channels.json`](channels.json). Each entry contains the extensions, GNU glibc baseline,
 and extra StaticPHP build options for that channel. When adding one, also expose its name in the build workflow's
@@ -115,9 +116,11 @@ During installation the plugin:
 3. downloads and verifies the archive before extracting it;
 4. installs PHP as `<install_path>/bin/php`;
 5. verifies and installs Composer as `<install_path>/bin/composer`;
-6. adds `<install_path>/bin` to `PATH` through `BackendExecEnv`.
+6. adds `<install_path>/bin` to `PATH` through `BackendExecEnv`;
+7. automatically loads bundled shared extensions when the archive includes them.
 
-Each archive must contain a single executable named `php` at its root.
+Each archive contains an executable named `php` at its root. GNU/Linux Laravel archives also contain the SQLSRV
+modules and their bundled `conf.d` file.
 
 Each PHP installation gets its own Composer executable. Composer configuration and cache continue to use Composer's
 default global directories.

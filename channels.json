@@ -66,6 +66,12 @@
   "laravel": {
     "description": "Herd-inspired CLI build for Laravel applications",
     "gnu_glibc": "2.25",
+    "shared_extensions": {
+      "gnu": [
+        "sqlsrv",
+        "pdo_sqlsrv"
+      ]
+    },
     "extensions": [
       "bcmath",
       "bz2",

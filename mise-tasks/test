@@ -74,6 +74,42 @@ assert(php.release_asset_sha256(release, linux_archive) == string.rep("a", 64))
 assert(php.release_asset_sha256(release, macos_archive) == string.rep("b", 64))
 assert(php.release_asset_sha256(release, "invalid.tar.gz") == nil)
 assert(php.release_asset_sha256(release, "missing.tar.gz") == nil)
+
+local existing_files = {
+    ["/opt/php/bin/conf.d/20-sqlsrv.ini"] = true,
+}
+package.preload.file = function()
+    return {
+        exists = function(path)
+            return existing_files[path] == true
+        end,
+        join_path = function(...)
+            return table.concat({ ... }, "/")
+        end,
+    }
+end
+package.loaded.file = nil
+dofile(root_dir .. "/hooks/backend_exec_env.lua")
+
+local function env_value(env_vars, key)
+    for _, entry in ipairs(env_vars) do
+        if entry.key == key then
+            return entry.value
+        end
+    end
+
+    return nil
+end
+
+local sqlsrv_env = PLUGIN:BackendExecEnv({ install_path = "/opt/php" }).env_vars
+assert(env_value(sqlsrv_env, "PATH") == "/opt/php/bin")
+assert(env_value(sqlsrv_env, "MISE_PHP_EXTENSION_DIR") == "/opt/php/bin/extensions")
+assert(env_value(sqlsrv_env, "PHP_INI_SCAN_DIR") == ":/opt/php/bin/conf.d")
+
+existing_files["/opt/php/bin/conf.d/20-sqlsrv.ini"] = nil
+local default_env = PLUGIN:BackendExecEnv({ install_path = "/opt/php" }).env_vars
+assert(#default_env == 1)
+assert(env_value(default_env, "PATH") == "/opt/php/bin")
 LUA
 
 mise_without_config() {

@@ -94,14 +94,20 @@ jobs:
         env:
           UPX_SUPPORTED: ${{ matrix.upx_supported }}
         run: |
+          SHARED_EXTENSIONS='[]'
           if [[ "$SPC_TARGET" == "native-native-gnu" ]]; then
             GNU_GLIBC="$(jq -er --arg channel "$BUILD_CHANNEL" '.[$channel].gnu_glibc' channels.json)"
+            SHARED_EXTENSIONS="$(jq -c --arg channel "$BUILD_CHANNEL" '.[$channel].shared_extensions.gnu // []' channels.json)"
             echo "SPC_TARGET=$SPC_TARGET.$GNU_GLIBC" >> "$GITHUB_ENV"
           fi
 
-          jq -r --arg channel "$BUILD_CHANNEL" --argjson upx_supported "$UPX_SUPPORTED" '
+          jq -r \
+            --arg channel "$BUILD_CHANNEL" \
+            --argjson shared_extensions "$SHARED_EXTENSIONS" \
+            --argjson upx_supported "$UPX_SUPPORTED" '
             .[$channel] |
-            "extensions=\(.extensions | join(","))",
+            "extensions=\(.extensions - $shared_extensions | join(","))",
+            "shared_extensions=\($shared_extensions | join(","))",
             "build_options=\(.build_options | tojson)",
             "upx_enabled=\(.upx and $upx_supported)"
           ' channels.json >> "$GITHUB_OUTPUT"
@@ -142,10 +148,14 @@ jobs:
         shell: bash
         env:
           EXTENSIONS: ${{ steps.channel.outputs.extensions }}
+          SHARED_EXTENSIONS: ${{ steps.channel.outputs.shared_extensions }}
           CHANNEL_BUILD_OPTIONS: ${{ steps.channel.outputs.build_options }}
           UPX_ENABLED: ${{ steps.channel.outputs.upx_enabled }}
         run: |
           BUILD_OPTIONS=(--build-cli --debug)
+          if [[ -n "$SHARED_EXTENSIONS" ]]; then
+            BUILD_OPTIONS+=("--build-shared=$SHARED_EXTENSIONS")
+          fi
           if [[ "$UPX_ENABLED" == "true" ]]; then
             BUILD_OPTIONS+=(--with-upx-pack)
           fi
@@ -164,6 +174,8 @@ jobs:
       - name: Package PHP
         id: package
         shell: bash
+        env:
+          SHARED_EXTENSIONS: ${{ steps.channel.outputs.shared_extensions }}
         run: |
           bin/spc dev:info php --json --no-ansi > php-info.json
           # $info is PHP syntax and must not be expanded by Bash.
@@ -179,7 +191,14 @@ jobs:
           ARCHIVE="dist/$ARCHIVE_NAME"
           mkdir -p "$PACKAGE_ROOT" dist
           install -m 755 buildroot/bin/php "$PACKAGE_ROOT/php"
-          tar -czf "$ARCHIVE" -C "$PACKAGE_ROOT" php
+          if [[ -n "$SHARED_EXTENSIONS" ]]; then
+            mkdir -p "$PACKAGE_ROOT/extensions" "$PACKAGE_ROOT/conf.d"
+            while IFS= read -r EXTENSION; do
+              install -m 755 "buildroot/modules/$EXTENSION.so" "$PACKAGE_ROOT/extensions/$EXTENSION.so"
+            done < <(tr ',' '\n' <<< "$SHARED_EXTENSIONS")
+            install -m 644 ../mise-php/config/20-sqlsrv.ini "$PACKAGE_ROOT/conf.d/20-sqlsrv.ini"
+          fi
+          tar -czf "$ARCHIVE" -C "$PACKAGE_ROOT" .
           echo "php_version=$PHP_PATCH_VERSION" >> "$GITHUB_OUTPUT"
           echo "archive_name=$ARCHIVE_NAME" >> "$GITHUB_OUTPUT"
 
