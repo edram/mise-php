@@ -69,10 +69,7 @@ mise plugins update php
 The `minimal` channel adds `openssl` for HTTPS downloads and `zip` for extracting ZIP packages. All other extensions
 match StaticPHP's upstream minimal build.
 
-The `laravel` channel follows [Laravel Herd's included extension set](https://herd.laravel.com/docs/macos/technology/php-extensions)
-where portable static builds allow it. It omits `ffi` because the Linux musl build cannot use it, and omits `sqlsrv`
-and `pdo_sqlsrv` because they require Microsoft's external ODBC driver. It includes `mbregex` and `mysqlnd` to
-complete StaticPHP's multibyte-regex and MySQL support.
+The `laravel` channel follows [Laravel Herd's included extension set](https://herd.laravel.com/docs/macos/technology/php-extensions).
 
 Channel definitions live in [`channels.json`](channels.json). Each entry contains the extensions and extra StaticPHP
 build options for that channel. When adding one, also expose its name in the build workflow's `channel` options.
