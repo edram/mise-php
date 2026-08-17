@@ -68,19 +68,20 @@ mise plugins update php
 
 ## Channels
 
-| Channel | Purpose |
-| --- | --- |
-| `common` | CLI build with database, network, image, XML, archive, and Redis support |
-| `laravel` | Herd-inspired CLI build for Laravel applications |
-| `minimal` | Upstream minimal CLI build with additional PHP extensions for Composer |
+| Channel | GNU glibc | Purpose |
+| --- | --- | --- |
+| `common` | 2.17+ | CLI build with database, network, image, XML, archive, and Redis support |
+| `laravel` | 2.25+ | Herd-inspired CLI build for Laravel applications |
+| `minimal` | 2.17+ | Upstream minimal CLI build with additional PHP extensions for Composer |
 
 The `minimal` channel adds `openssl` for HTTPS downloads and `zip` for extracting ZIP packages. All other extensions
 match StaticPHP's upstream minimal build.
 
 The `laravel` channel follows [Laravel Herd's included extension set](https://herd.laravel.com/docs/macos/technology/php-extensions).
 
-Channel definitions live in [`channels.json`](channels.json). Each entry contains the extensions and extra StaticPHP
-build options for that channel. When adding one, also expose its name in the build workflow's `channel` options.
+Channel definitions live in [`channels.json`](channels.json). Each entry contains the extensions, GNU glibc baseline,
+and extra StaticPHP build options for that channel. When adding one, also expose its name in the build workflow's
+`channel` options.
 
 Only versions whose platform archive includes a GitHub-provided SHA-256 digest are returned:
 

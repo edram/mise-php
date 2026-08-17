@@ -56,7 +56,7 @@ jobs:
           - target: linux-x86_64-gnu
             runner: ubuntu-latest
             upx_supported: true
-            spc_target: native-native-gnu.2.17
+            spc_target: native-native-gnu
           - target: linux-aarch64
             runner: ubuntu-24.04-arm
             upx_supported: true
@@ -64,7 +64,7 @@ jobs:
           - target: linux-aarch64-gnu
             runner: ubuntu-24.04-arm
             upx_supported: true
-            spc_target: native-native-gnu.2.17
+            spc_target: native-native-gnu
           - target: macos-x86_64
             runner: macos-15-intel
             upx_supported: false
@@ -94,6 +94,11 @@ jobs:
         env:
           UPX_SUPPORTED: ${{ matrix.upx_supported }}
         run: |
+          if [[ "$SPC_TARGET" == "native-native-gnu" ]]; then
+            GNU_GLIBC="$(jq -er --arg channel "$BUILD_CHANNEL" '.[$channel].gnu_glibc' channels.json)"
+            echo "SPC_TARGET=$SPC_TARGET.$GNU_GLIBC" >> "$GITHUB_ENV"
+          fi
+
           jq -r --arg channel "$BUILD_CHANNEL" --argjson upx_supported "$UPX_SUPPORTED" '
             .[$channel] |
             "extensions=\(.extensions | join(","))",
