@@ -28,10 +28,15 @@ function M.parse_tool(tool)
     local value = tostring(tool or "")
     local sapi, channel = value:match("^([a-z0-9]+)%-([a-z0-9][a-z0-9_-]*)$")
     if not M.SAPIS[sapi] then
-        error("Unsupported PHP tool: " .. value .. ". Use php:cli-<channel>.")
+        error("Unsupported PHP tool: " .. value .. ". Use php:cli-<channel> or php:cli-<channel>-gnu.")
     end
 
-    return sapi, channel
+    local base_channel = channel:match("^(.+)%-gnu$")
+    if base_channel ~= nil then
+        return sapi, base_channel, "gnu"
+    end
+
+    return sapi, channel, nil
 end
 
 function M.platform()
@@ -79,8 +84,13 @@ function M.tag(version, sapi, channel)
     return "php-" .. version .. "-" .. sapi .. "-" .. channel
 end
 
-function M.archive_name(version, sapi, channel, platform, arch)
-    return M.tag(version, sapi, channel) .. "-" .. platform .. "-" .. arch .. ".tar.gz"
+function M.archive_name(version, sapi, channel, platform, arch, runtime)
+    if runtime == "gnu" and platform ~= "linux" then
+        error("GNU PHP builds are only available on Linux.")
+    end
+
+    local runtime_suffix = runtime and "-" .. runtime or ""
+    return M.tag(version, sapi, channel) .. "-" .. platform .. "-" .. arch .. runtime_suffix .. ".tar.gz"
 end
 
 function M.download_url(tag, filename)

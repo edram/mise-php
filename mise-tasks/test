@@ -23,6 +23,12 @@ local sapi, channel = php.parse_tool("cli-common")
 assert(sapi == "cli")
 assert(channel == "common")
 
+local runtime
+sapi, channel, runtime = php.parse_tool("cli-laravel-gnu")
+assert(sapi == "cli")
+assert(channel == "laravel")
+assert(runtime == "gnu")
+
 sapi, channel = php.parse_tool("cli-future-channel")
 assert(sapi == "cli")
 assert(channel == "future-channel")
@@ -38,6 +44,21 @@ assert(
     php.archive_name("8.5.9", "cli", "common", "linux", "x86_64")
         == "php-8.5.9-cli-common-linux-x86_64.tar.gz"
 )
+assert(
+    php.archive_name("8.5.9", "cli", "laravel", "linux", "x86_64", "gnu")
+        == "php-8.5.9-cli-laravel-linux-x86_64-gnu.tar.gz"
+)
+local macos_gnu_ok, macos_gnu_error = pcall(
+    php.archive_name,
+    "8.5.9",
+    "cli",
+    "laravel",
+    "macos",
+    "aarch64",
+    "gnu"
+)
+assert(not macos_gnu_ok)
+assert(tostring(macos_gnu_error):match("GNU PHP builds are only available on Linux"))
 
 local linux_archive = "php-8.5.9-cli-common-linux-x86_64.tar.gz"
 local macos_archive = "php-8.5.9-cli-common-macos-aarch64.tar.gz"

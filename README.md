@@ -35,6 +35,14 @@ mise use php:cli-laravel@8.5
 mise use php:cli-minimal@8.5
 ```
 
+Linux builds use a fully static musl binary by default. Append `-gnu` to install the glibc 2.17-compatible build:
+
+```bash
+mise use php:cli-laravel-gnu@8.5
+```
+
+GNU builds are available on Linux only. On macOS, use the channel name without a runtime suffix.
+
 Fuzzy versions resolve through mise, so `@8.5` selects the latest published `8.5.x` build. Exact versions and
 `@latest` are also supported:
 
@@ -43,11 +51,11 @@ mise use php:cli-common@8.5.9
 mise use php:cli-common@latest
 ```
 
-The selected channel is stored in `mise.toml` as part of the tool name:
+The selected channel and optional runtime are stored in `mise.toml` as part of the tool name:
 
 ```toml
 [tools]
-"php:cli-laravel" = "8.5"
+"php:cli-laravel-gnu" = "8.5"
 ```
 
 ## Update
@@ -88,6 +96,7 @@ and assets use this contract:
 ```text
 php-{version}-{sapi}-{channel}
 php-{version}-{sapi}-{channel}-{platform}-{arch}.tar.gz
+php-{version}-{sapi}-{channel}-linux-{arch}-gnu.tar.gz
 ```
 
 For example:
@@ -95,6 +104,7 @@ For example:
 ```text
 php-8.5.9-cli-common
 php-8.5.9-cli-common-linux-x86_64.tar.gz
+php-8.5.9-cli-common-linux-x86_64-gnu.tar.gz
 ```
 
 During installation the plugin:

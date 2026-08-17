@@ -6,7 +6,7 @@ local semver = require("semver")
 local php = require("lib.php")
 
 function PLUGIN:BackendListVersions(ctx)
-    local sapi, channel = php.parse_tool(ctx.tool)
+    local sapi, channel, runtime = php.parse_tool(ctx.tool)
     local platform = php.platform()
     local arch = php.arch()
 
@@ -33,7 +33,7 @@ function PLUGIN:BackendListVersions(ctx)
     for _, release in ipairs(releases) do
         if not release.draft and not release.prerelease then
             local version = php.version_from_tag(release.tag_name, sapi, channel)
-            local archive_name = version and php.archive_name(version, sapi, channel, platform, arch)
+            local archive_name = version and php.archive_name(version, sapi, channel, platform, arch, runtime)
 
             if archive_name and php.release_asset_sha256(release, archive_name) then
                 table.insert(versions, version)
