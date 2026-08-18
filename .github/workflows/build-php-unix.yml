@@ -38,8 +38,6 @@ jobs:
     name: PHP ${{ inputs.php_version || '8.5' }} CLI ${{ matrix.target }} (${{ inputs.channel || 'common' }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 240
-    env:
-      SPC_TARGET: ${{ matrix.spc_target }}
     permissions:
       contents: write
     defaults:
@@ -52,29 +50,27 @@ jobs:
           - target: linux-x86_64
             runner: ubuntu-latest
             upx_supported: true
-            spc_target: native-native-musl
+            spc_libc: musl
           - target: linux-x86_64-gnu
-            runner: ubuntu-latest
-            upx_supported: true
-            # Keep glibc Zig targets architecture-explicit.
-            # See: https://github.com/static-php/hosted/commit/f617b1b270acf1bf8f11b2810e9ae167ba91390d
-            spc_target: x86_64-linux-gnu
+            runner: ubuntu-22.04
+            upx_supported: false
+            spc_libc: glibc
           - target: linux-aarch64
             runner: ubuntu-24.04-arm
             upx_supported: true
-            spc_target: native-native-musl
+            spc_libc: musl
           - target: linux-aarch64-gnu
-            runner: ubuntu-24.04-arm
-            upx_supported: true
-            spc_target: aarch64-linux-gnu
+            runner: ubuntu-22.04-arm
+            upx_supported: false
+            spc_libc: glibc
           - target: macos-x86_64
             runner: macos-15-intel
             upx_supported: false
-            spc_target: ""
+            spc_libc: ""
           - target: macos-aarch64
             runner: macos-15
             upx_supported: false
-            spc_target: ""
+            spc_libc: ""
 
     steps:
       - name: Checkout build configuration
@@ -86,7 +82,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: crazywhalecc/static-php-cli
-          ref: v3
+          ref: main
           path: static-php-cli
 
       - name: Select extension channel
@@ -94,22 +90,16 @@ jobs:
         shell: bash
         working-directory: mise-php
         env:
+          SPC_LIBC_VALUE: ${{ matrix.spc_libc }}
           UPX_SUPPORTED: ${{ matrix.upx_supported }}
         run: |
-          SHARED_EXTENSIONS='[]'
-          if [[ "$SPC_TARGET" == *-linux-gnu ]]; then
-            GNU_GLIBC="$(jq -er --arg channel "$BUILD_CHANNEL" '.[$channel].gnu_glibc' channels.json)"
-            SHARED_EXTENSIONS="$(jq -c --arg channel "$BUILD_CHANNEL" '.[$channel].shared_extensions.gnu // []' channels.json)"
-            echo "SPC_TARGET=$SPC_TARGET.$GNU_GLIBC" >> "$GITHUB_ENV"
-          fi
-
           jq -r \
             --arg channel "$BUILD_CHANNEL" \
-            --argjson shared_extensions "$SHARED_EXTENSIONS" \
+            --arg libc "$SPC_LIBC_VALUE" \
             --argjson upx_supported "$UPX_SUPPORTED" '
             .[$channel] |
-            "extensions=\(.extensions - $shared_extensions | join(","))",
-            "shared_extensions=\($shared_extensions | join(","))",
+            (.excluded_extensions[$libc] // []) as $excluded_extensions |
+            "extensions=\(.extensions - $excluded_extensions | join(","))",
             "build_options=\(.build_options | tojson)",
             "upx_enabled=\(.upx and $upx_supported)"
           ' channels.json >> "$GITHUB_OUTPUT"
@@ -134,10 +124,35 @@ jobs:
         uses: actions/cache@v5
         with:
           path: static-php-cli/downloads
-          key: spc-v3-${{ env.PHP_VERSION }}-${{ matrix.target }}-${{ env.BUILD_CHANNEL }}
+          key: spc-v2-${{ env.PHP_VERSION }}-${{ matrix.target }}-${{ env.BUILD_CHANNEL }}
 
       - name: Install StaticPHP dependencies
         run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist --no-dev
+
+      - name: Install GNU system libraries
+        if: matrix.spc_libc == 'glibc'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libssl-dev unixodbc-dev
+
+      - name: Configure StaticPHP toolchain
+        if: matrix.spc_libc != ''
+        shell: bash
+        env:
+          SPC_LIBC_VALUE: ${{ matrix.spc_libc }}
+        run: |
+          echo "SPC_LIBC=$SPC_LIBC_VALUE" >> "$GITHUB_ENV"
+          if [[ "$SPC_LIBC_VALUE" == "glibc" ]]; then
+            # StaticPHP v2 only considers system libraries when PKG_CONFIG_PATH is explicit.
+            # See: https://github.com/crazywhalecc/static-php-cli/pull/1056
+            SYSTEM_PKG_CONFIG_PATH="$(pkg-config --variable pc_path pkg-config)"
+            if [[ -z "$SYSTEM_PKG_CONFIG_PATH" ]]; then
+              echo "Cannot resolve the system pkg-config search path"
+              exit 1
+            fi
+            echo "PKG_CONFIG_PATH=$SYSTEM_PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+          fi
 
       - name: Check build environment
         run: bin/spc doctor --auto-fix
@@ -146,17 +161,33 @@ jobs:
         if: steps.channel.outputs.upx_enabled == 'true'
         run: bin/spc install-pkg upx
 
+      - name: Download PHP sources
+        shell: bash
+        env:
+          EXTENSIONS: ${{ steps.channel.outputs.extensions }}
+        run: |
+          DOWNLOAD_OPTIONS=(--retry=5 --ignore-cache-sources=php-src)
+          if [[ "${SPC_LIBC:-}" == "musl" ]]; then
+            DOWNLOAD_OPTIONS+=(--prefer-pre-built)
+          fi
+
+          bin/spc download \
+            --with-php="$PHP_VERSION" \
+            --for-extensions="$EXTENSIONS" \
+            "${DOWNLOAD_OPTIONS[@]}"
+
       - name: Build PHP CLI
         shell: bash
         env:
           EXTENSIONS: ${{ steps.channel.outputs.extensions }}
-          SHARED_EXTENSIONS: ${{ steps.channel.outputs.shared_extensions }}
           CHANNEL_BUILD_OPTIONS: ${{ steps.channel.outputs.build_options }}
           UPX_ENABLED: ${{ steps.channel.outputs.upx_enabled }}
         run: |
           BUILD_OPTIONS=(--build-cli --debug)
-          if [[ -n "$SHARED_EXTENSIONS" ]]; then
-            BUILD_OPTIONS+=("--build-shared=$SHARED_EXTENSIONS")
+          if [[ "${SPC_LIBC:-}" == "musl" ]]; then
+            # Fully static musl builds cannot safely use Opcache JIT.
+            # See: https://github.com/php/frankenphp/blob/main/build-static.sh
+            BUILD_OPTIONS+=(--disable-opcache-jit)
           fi
           if [[ "$UPX_ENABLED" == "true" ]]; then
             BUILD_OPTIONS+=(--with-upx-pack)
@@ -165,43 +196,25 @@ jobs:
             BUILD_OPTIONS+=("$OPTION")
           done < <(jq -r '.[]' <<< "$CHANNEL_BUILD_OPTIONS")
 
-          # Retry only download failures; build and validation failures must remain actionable.
-          # Adapted from: https://github.com/static-php/hosted/commit/24374fd3fdddd9991ee8ec1d63e26e65ad366f85
-          for ATTEMPT in 1 2 3; do
-            echo "Build attempt $ATTEMPT/3"
-            if bin/spc build \
-              "${BUILD_OPTIONS[@]}" \
-              "$EXTENSIONS" \
-              --dl-with-php="$PHP_VERSION" \
-              --dl-retry=5 \
-              --dl-prefer-binary \
-              --dl-ignore-cache=php-src; then
-              exit 0
-            else
-              EXIT_CODE=$?
-            fi
+          bin/spc build "${BUILD_OPTIONS[@]}" "$EXTENSIONS"
 
-            echo "::warning::Build attempt $ATTEMPT/3 failed with exit code $EXIT_CODE"
-            if [[ "$EXIT_CODE" -ne 75 ]]; then
-              exit "$EXIT_CODE"
-            fi
-            if [[ "$ATTEMPT" -lt 3 ]]; then
-              echo "Download error detected, retrying in 30 seconds"
-              sleep 30
-            fi
-          done
-          exit 75
+      - name: Validate GNU dynamic dependencies
+        if: matrix.spc_libc == 'glibc'
+        shell: bash
+        run: |
+          ldd buildroot/bin/php | tee php-ldd.txt
+          grep -q 'libssl\.so\.3' php-ldd.txt
+          grep -q 'libcrypto\.so\.3' php-ldd.txt
+          if [[ "$BUILD_CHANNEL" == "laravel" ]]; then
+            grep -q 'libodbc\.so\.2' php-ldd.txt
+            grep -q 'libodbcinst\.so\.2' php-ldd.txt
+          fi
 
       - name: Package PHP
         id: package
         shell: bash
-        env:
-          SHARED_EXTENSIONS: ${{ steps.channel.outputs.shared_extensions }}
         run: |
-          bin/spc dev:info php --json --no-ansi > php-info.json
-          # $info is PHP syntax and must not be expanded by Bash.
-          # shellcheck disable=SC2016
-          PHP_PATCH_VERSION="$(php -r '$info = json_decode(file_get_contents("php-info.json"), true); echo $info["cache"]["source"]["info"]["version"] ?? "";')"
+          PHP_PATCH_VERSION="$(buildroot/bin/php -r 'echo PHP_VERSION;')"
           if [[ -z "$PHP_PATCH_VERSION" ]]; then
             echo "Cannot resolve the built PHP version"
             exit 1
@@ -212,13 +225,6 @@ jobs:
           ARCHIVE="dist/$ARCHIVE_NAME"
           mkdir -p "$PACKAGE_ROOT" dist
           install -m 755 buildroot/bin/php "$PACKAGE_ROOT/php"
-          if [[ -n "$SHARED_EXTENSIONS" ]]; then
-            mkdir -p "$PACKAGE_ROOT/extensions" "$PACKAGE_ROOT/conf.d"
-            while IFS= read -r EXTENSION; do
-              install -m 755 "buildroot/modules/$EXTENSION.so" "$PACKAGE_ROOT/extensions/$EXTENSION.so"
-            done < <(tr ',' '\n' <<< "$SHARED_EXTENSIONS")
-            install -m 644 ../mise-php/config/20-sqlsrv.ini "$PACKAGE_ROOT/conf.d/20-sqlsrv.ini"
-          fi
           tar -czf "$ARCHIVE" -C "$PACKAGE_ROOT" .
           echo "php_version=$PHP_PATCH_VERSION" >> "$GITHUB_OUTPUT"
           echo "archive_name=$ARCHIVE_NAME" >> "$GITHUB_OUTPUT"

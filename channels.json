@@ -1,7 +1,7 @@
 {
   "minimal": {
     "description": "Smaller Composer-ready CLI build with OpenSSL and ZIP support",
-    "gnu_glibc": "2.17",
+    "gnu_glibc": "2.35",
     "extensions": [
       "iconv",
       "pcntl",
@@ -18,7 +18,7 @@
   },
   "common": {
     "description": "CLI build with database, network, image, XML, archive, and Redis support",
-    "gnu_glibc": "2.17",
+    "gnu_glibc": "2.35",
     "extensions": [
       "bcmath",
       "bz2",
@@ -59,17 +59,16 @@
       "zip"
     ],
     "build_options": [
-      "--with-suggests"
+      "--with-suggested-libs"
     ],
     "upx": true
   },
   "laravel": {
     "description": "Herd-inspired CLI build for Laravel applications",
-    "gnu_glibc": "2.25",
-    "shared_extensions": {
-      "gnu": [
-        "sqlsrv",
-        "pdo_sqlsrv"
+    "gnu_glibc": "2.35",
+    "excluded_extensions": {
+      "musl": [
+        "ffi"
       ]
     },
     "extensions": [
@@ -132,7 +131,7 @@
       "zlib"
     ],
     "build_options": [
-      "--with-suggests"
+      "--with-suggested-libs"
     ],
     "upx": false
   }

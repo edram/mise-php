@@ -1,8 +1,8 @@
 # mise-php
 
 A [mise](https://mise.jdx.dev) backend plugin for precompiled PHP binaries built with
-[StaticPHP](https://static-php.dev). It installs PHP and Composer without compiling source code or installing system
-packages.
+[StaticPHP v2](https://static-php.github.io/v2-docs/). It installs PHP and Composer without compiling source code. Static musl builds
+are self-contained, while GNU builds use selected host shared libraries.
 
 ## Requirements
 
@@ -10,6 +10,9 @@ packages.
 - Linux or macOS
 - `x86_64` or `aarch64`
 - `sha256sum` or `shasum`
+- GNU builds require glibc 2.35+ and compatible `libssl.so.3` and `libcrypto.so.3` libraries
+- GNU Laravel builds additionally require `libodbc.so.2` and `libodbcinst.so.2`; SQL Server connections require
+  Microsoft ODBC Driver 18
 
 ## Install
 
@@ -35,7 +38,7 @@ mise use php:cli-laravel@8.5
 mise use php:cli-minimal@8.5
 ```
 
-Linux builds use a fully static musl binary by default. Append `-gnu` to install the glibc 2.17-compatible build:
+Linux builds use a fully static musl binary by default. Append `-gnu` to install the Ubuntu 22.04 glibc-compatible build:
 
 ```bash
 mise use php:cli-laravel-gnu@8.5
@@ -70,15 +73,18 @@ mise plugins update php
 
 | Channel | GNU glibc | Purpose |
 | --- | --- | --- |
-| `common` | 2.17+ | CLI build with database, network, image, XML, archive, and Redis support |
-| `laravel` | 2.25+ | Herd-inspired CLI build for Laravel applications |
-| `minimal` | 2.17+ | Upstream minimal CLI build with additional PHP extensions for Composer |
+| `common` | 2.35+ | CLI build with database, network, image, XML, archive, and Redis support |
+| `laravel` | 2.35+ | Herd-inspired CLI build for Laravel applications |
+| `minimal` | 2.35+ | Upstream minimal CLI build with additional PHP extensions for Composer |
 
 The `minimal` channel adds `openssl` for HTTPS downloads and `zip` for extracting ZIP packages. All other extensions
 match StaticPHP's upstream minimal build.
 
 The `laravel` channel follows [Laravel Herd's included extension set](https://herd.laravel.com/docs/macos/technology/php-extensions).
-On GNU/Linux, `sqlsrv` and `pdo_sqlsrv` are packaged as shared extensions so they can use the host's Microsoft ODBC Driver.
+GNU/Linux builds link against the Ubuntu 22.04 system OpenSSL libraries. Laravel GNU builds additionally link against
+system unixODBC, and require Microsoft's ODBC Driver for SQL Server to use `sqlsrv` or `pdo_sqlsrv`.
+The fully static musl Laravel build excludes `ffi` because musl cannot dynamically load the external libraries FFI
+requires.
 
 Channel definitions live in [`channels.json`](channels.json). Each entry contains the extensions, GNU glibc baseline,
 and extra StaticPHP build options for that channel. When adding one, also expose its name in the build workflow's
@@ -117,10 +123,10 @@ During installation the plugin:
 4. installs PHP as `<install_path>/bin/php`;
 5. verifies and installs Composer as `<install_path>/bin/composer`;
 6. adds `<install_path>/bin` to `PATH` through `BackendExecEnv`;
-7. automatically loads bundled shared extensions when the archive includes them.
+7. configures bundled shared extensions when an archive includes them.
 
-Each archive contains an executable named `php` at its root. GNU/Linux Laravel archives also contain the SQLSRV
-modules and their bundled `conf.d` file.
+Each archive contains an executable named `php` at its root. The GNU/Linux Laravel binary includes SQLSRV support but
+loads the Microsoft ODBC Driver and its dependencies from the host system.
 
 Each PHP installation gets its own Composer executable. Composer configuration and cache continue to use Composer's
 default global directories.
