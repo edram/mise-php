@@ -193,6 +193,9 @@ jobs:
             BUILD_OPTIONS+=(--with-upx-pack)
           fi
           while IFS= read -r OPTION; do
+            if [[ "${SPC_LIBC:-}" == "glibc" && "$OPTION" == "--with-suggested-libs" ]]; then
+              continue
+            fi
             BUILD_OPTIONS+=("$OPTION")
           done < <(jq -r '.[]' <<< "$CHANNEL_BUILD_OPTIONS")
 
