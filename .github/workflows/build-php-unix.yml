@@ -56,7 +56,9 @@ jobs:
           - target: linux-x86_64-gnu
             runner: ubuntu-latest
             upx_supported: true
-            spc_target: native-native-gnu
+            # Keep glibc Zig targets architecture-explicit.
+            # See: https://github.com/static-php/hosted/commit/f617b1b270acf1bf8f11b2810e9ae167ba91390d
+            spc_target: x86_64-linux-gnu
           - target: linux-aarch64
             runner: ubuntu-24.04-arm
             upx_supported: true
@@ -64,7 +66,7 @@ jobs:
           - target: linux-aarch64-gnu
             runner: ubuntu-24.04-arm
             upx_supported: true
-            spc_target: native-native-gnu
+            spc_target: aarch64-linux-gnu
           - target: macos-x86_64
             runner: macos-15-intel
             upx_supported: false
@@ -95,7 +97,7 @@ jobs:
           UPX_SUPPORTED: ${{ matrix.upx_supported }}
         run: |
           SHARED_EXTENSIONS='[]'
-          if [[ "$SPC_TARGET" == "native-native-gnu" ]]; then
+          if [[ "$SPC_TARGET" == *-linux-gnu ]]; then
             GNU_GLIBC="$(jq -er --arg channel "$BUILD_CHANNEL" '.[$channel].gnu_glibc' channels.json)"
             SHARED_EXTENSIONS="$(jq -c --arg channel "$BUILD_CHANNEL" '.[$channel].shared_extensions.gnu // []' channels.json)"
             echo "SPC_TARGET=$SPC_TARGET.$GNU_GLIBC" >> "$GITHUB_ENV"
@@ -163,13 +165,32 @@ jobs:
             BUILD_OPTIONS+=("$OPTION")
           done < <(jq -r '.[]' <<< "$CHANNEL_BUILD_OPTIONS")
 
-          bin/spc build \
-            "${BUILD_OPTIONS[@]}" \
-            "$EXTENSIONS" \
-            --dl-with-php="$PHP_VERSION" \
-            --dl-retry=5 \
-            --dl-prefer-binary \
-            --dl-ignore-cache=php-src
+          # Retry only download failures; build and validation failures must remain actionable.
+          # Adapted from: https://github.com/static-php/hosted/commit/24374fd3fdddd9991ee8ec1d63e26e65ad366f85
+          for ATTEMPT in 1 2 3; do
+            echo "Build attempt $ATTEMPT/3"
+            if bin/spc build \
+              "${BUILD_OPTIONS[@]}" \
+              "$EXTENSIONS" \
+              --dl-with-php="$PHP_VERSION" \
+              --dl-retry=5 \
+              --dl-prefer-binary \
+              --dl-ignore-cache=php-src; then
+              exit 0
+            else
+              EXIT_CODE=$?
+            fi
+
+            echo "::warning::Build attempt $ATTEMPT/3 failed with exit code $EXIT_CODE"
+            if [[ "$EXIT_CODE" -ne 75 ]]; then
+              exit "$EXIT_CODE"
+            fi
+            if [[ "$ATTEMPT" -lt 3 ]]; then
+              echo "Download error detected, retrying in 30 seconds"
+              sleep 30
+            fi
+          done
+          exit 75
 
       - name: Package PHP
         id: package
